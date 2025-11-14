@@ -20,9 +20,6 @@ import { Logger } from "featherlog";
 const logger = new Logger({
   secret: "your-project-secret",
   "project-id": "your-project-id",
-  // endpoint is optional - automatically determined based on NODE_ENV
-  // Development: http://localhost:3000/api/logs
-  // Production: https://lekkerklooien.nl/api/logs
 });
 
 // Log errors

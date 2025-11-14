@@ -1,6 +1,6 @@
 {
   "name": "featherlog",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,9 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "pnpm build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "logging",
@@ -44,9 +46,12 @@
   "bugs": {
     "url": "https://github.com/martijnd/featherlog/issues"
   },
-  "homepage": "https://github.com/martijnd/featherlog#readme",
+  "homepage": "https://github.com/martijnd/featherlog/tree/main/packages/sdk#readme",
+  "readme": "https://github.com/martijnd/featherlog/blob/main/packages/sdk/README.md",
   "devDependencies": {
     "typescript": "^5.3.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0"
   }
 }

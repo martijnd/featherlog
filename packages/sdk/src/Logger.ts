@@ -23,6 +23,17 @@ export class Logger {
     this.secret = options.secret;
     this.projectId = options["project-id"];
 
+    // Check for FEATHERLOG_ENDPOINT environment variable first
+    const envEndpoint =
+      typeof process !== "undefined" &&
+      process.env &&
+      process.env.FEATHERLOG_ENDPOINT;
+
+    if (envEndpoint) {
+      this.endpoint = envEndpoint;
+      return;
+    }
+
     // Detect if we're in production
     // In browser/Vite: process.env.NODE_ENV is replaced at build time
     // In Node.js: process.env.NODE_ENV is available at runtime
