@@ -5,6 +5,65 @@ All notable changes to the Featherlog SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2024-11-14
+
+### BREAKING CHANGES
+
+- **Removed `secret` parameter** - The SDK no longer requires a `secret` parameter in the Logger constructor. Authentication is now handled via origin-based checking on the server side.
+- **Simplified Logger initialization** - The Logger constructor now only requires `project-id`:
+
+  ```typescript
+  // Before (v1.x)
+  const logger = new Logger({
+    "project-id": "your-project-id",
+    secret: "your-secret",
+  });
+
+  // After (v2.0)
+  const logger = new Logger({
+    "project-id": "your-project-id",
+  });
+  ```
+
+### Changed
+
+- **Origin-based authentication** - Projects now use origin-based authentication instead of shared secrets. Configure allowed origins for each project in the Featherlog admin panel. The SDK automatically sends the `Origin` header with requests, and the server validates it against the project's allowed origins list.
+- **Improved security** - Origin-based authentication provides better security by restricting log submissions to specific domains/origins, preventing unauthorized log submissions even if a project ID is known.
+
+### Migration Guide
+
+To migrate from v1.x to v2.0:
+
+1. **Remove `secret` from Logger initialization**:
+
+   ```typescript
+   // Remove this
+   const logger = new Logger({
+     "project-id": "your-project-id",
+     secret: "your-secret", // ❌ Remove this
+   });
+
+   // Use this instead
+   const logger = new Logger({
+     "project-id": "your-project-id", // ✅ Only project-id needed
+   });
+   ```
+
+2. **Configure allowed origins in admin panel**:
+
+   - Log into your Featherlog admin panel
+   - Navigate to the Projects section
+   - Edit your project and add the allowed origins (e.g., `https://yourdomain.com`, `http://localhost:3000`)
+   - The server will automatically validate requests based on the `Origin` header
+
+3. **No code changes needed for log methods** - All logging methods (`error()`, `warn()`, `info()`) work exactly the same way.
+
+### Notes
+
+- The SDK automatically includes the `Origin` header in requests (browser) or uses the `Referer` header (Node.js)
+- Server-side requests (Node.js) without an origin header are allowed if the project's origins list is empty (for backward compatibility)
+- Wildcard origins are supported (e.g., `https://*.example.com`) but `*` alone is not allowed for security reasons
+
 ## [1.0.2] - 2024-11-14
 
 ### Changed
@@ -66,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TypeScript type definitions for IDE autocomplete
 - Clear API documentation
 
+[2.0.0]: https://github.com/martijnd/featherlog/releases/tag/sdk-v2.0.0
 [1.0.2]: https://github.com/martijnd/featherlog/releases/tag/sdk-v1.0.2
 [1.0.1]: https://github.com/martijnd/featherlog/releases/tag/sdk-v1.0.1
 [1.0.0]: https://github.com/martijnd/featherlog/releases/tag/sdk-v1.0.0

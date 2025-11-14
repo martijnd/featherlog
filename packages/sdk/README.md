@@ -47,11 +47,17 @@ Creates a new Logger instance.
 **Options:**
 
 - `project-id` (string, required): Your unique project identifier
-- `endpoint` (string, optional): The Featherlog server endpoint. If not provided, automatically determined based on `NODE_ENV`:
-  - `development` (or unset): Uses `FEATHERLOG_ENDPOINT` env var or defaults to `http://localhost:3000/api/logs`
-  - `production`: Uses `FEATHERLOG_ENDPOINT` env var or defaults to `https://lekkerklooien.nl/api/logs`
 
-You can also set the `FEATHERLOG_ENDPOINT` environment variable to override the default endpoint for your environment.
+**Note:** The SDK uses origin-based authentication. Make sure to configure allowed origins for your project in the Featherlog admin panel. The SDK automatically sends the `Origin` header with requests.
+
+**Endpoint Configuration:**
+
+The endpoint is automatically determined based on `NODE_ENV`:
+
+- `development` (or unset): Uses `FEATHERLOG_ENDPOINT` env var or defaults to `http://localhost:3000/api/logs`
+- `production`: Uses `FEATHERLOG_ENDPOINT` env var or defaults to `https://featherlog.lekkerklooien.nl/api/logs`
+
+You can override the endpoint by setting the `FEATHERLOG_ENDPOINT` environment variable.
 
 ### `logger.error(message: string, metadata?: LogMetadata)`
 
@@ -66,6 +72,12 @@ Sends a warning log to the server.
 Sends an info log to the server.
 
 All methods are async and return `Promise<void>`. They will silently fail if the server is unreachable to prevent breaking your application.
+
+## Authentication
+
+Featherlog uses origin-based authentication. When you create a project in the Featherlog admin panel, you configure a list of allowed origins (e.g., `https://yourdomain.com`, `http://localhost:3000`). The SDK automatically includes the `Origin` header in requests, and the server validates it against your project's allowed origins list.
+
+**Important:** Make sure to add your application's origin(s) to your project's allowed origins list in the admin panel before using the SDK.
 
 ## Requirements
 
