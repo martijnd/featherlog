@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiClient, LogEntry, Project } from "./api/client";
 import Login from "./components/Login";
 import FilterBar from "./components/FilterBar";
@@ -11,6 +11,8 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [isRealtime, setIsRealtime] = useState(true);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   // Filter state
   const [selectedProject, setSelectedProject] = useState("");
@@ -31,14 +33,86 @@ function App() {
     if (isAuthenticated) {
       loadProjects();
       loadLogs();
+      startRealtimeUpdates();
     }
+
+    return () => {
+      // Cleanup: close SSE connection on unmount
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
   }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {
-      loadLogs();
+      // Reload logs when filters change (even in realtime mode, we need to reload initial set)
+      // But skip if offset changes in realtime mode (pagination handled separately)
+      if (isRealtime && offset === 0) {
+        // In realtime mode, reload initial logs when filters change
+        loadLogs();
+      } else if (!isRealtime) {
+        // In manual mode, reload on any filter/offset change
+        loadLogs();
+      }
     }
-  }, [selectedProject, selectedLevel, startDate, endDate, offset]);
+  }, [selectedProject, selectedLevel, startDate, endDate, offset, isRealtime]);
+
+  const startRealtimeUpdates = () => {
+    if (!isRealtime) return;
+
+    // Close existing connection if any
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    try {
+      const eventSource = apiClient.createLogStream(
+        (newLog: LogEntry) => {
+          // Check if the new log matches current filters
+          if (matchesFilters(newLog)) {
+            setLogs((prevLogs) => {
+              // Add new log at the beginning (most recent first)
+              const updatedLogs = [newLog, ...prevLogs];
+              // Keep only the first `limit` logs to match pagination
+              return updatedLogs.slice(0, limit);
+            });
+            // Update total count
+            setTotal((prevTotal) => prevTotal + 1);
+          }
+        },
+        (error) => {
+          console.error("SSE error:", error);
+          // SSE will auto-reconnect
+        },
+        () => {
+          console.log("SSE connected");
+        }
+      );
+
+      eventSourceRef.current = eventSource;
+    } catch (error) {
+      console.error("Failed to create SSE connection:", error);
+      setIsRealtime(false);
+    }
+  };
+
+  const matchesFilters = (log: LogEntry): boolean => {
+    if (selectedProject && log["project-id"] !== selectedProject) {
+      return false;
+    }
+    if (selectedLevel && log.level !== selectedLevel) {
+      return false;
+    }
+    if (startDate && new Date(log.timestamp) < new Date(startDate)) {
+      return false;
+    }
+    if (endDate && new Date(log.timestamp) > new Date(endDate)) {
+      return false;
+    }
+    return true;
+  };
 
   const loadProjects = async () => {
     try {
@@ -76,6 +150,11 @@ function App() {
   };
 
   const handleLogout = () => {
+    // Close SSE connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
     apiClient.clearToken();
     setIsAuthenticated(false);
     setLogs([]);
@@ -85,6 +164,23 @@ function App() {
     setStartDate("");
     setEndDate("");
     setOffset(0);
+  };
+
+  const toggleRealtime = () => {
+    const newRealtimeState = !isRealtime;
+    setIsRealtime(newRealtimeState);
+
+    if (newRealtimeState) {
+      // Start realtime updates
+      startRealtimeUpdates();
+    } else {
+      // Stop realtime updates and reload logs
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      loadLogs();
+    }
   };
 
   const handleClearFilters = () => {
@@ -118,6 +214,24 @@ function App() {
       >
         <h1>Featherlog Admin</h1>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button
+            onClick={toggleRealtime}
+            style={{
+              padding: "0.5rem 1rem",
+              backgroundColor: isRealtime ? "#28a745" : "#6c757d",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+            title={
+              isRealtime
+                ? "Realtime updates enabled"
+                : "Realtime updates disabled"
+            }
+          >
+            {isRealtime ? "● Realtime" : "○ Manual"}
+          </button>
           <CreateProject onProjectCreated={loadProjects} />
           <button
             onClick={handleLogout}

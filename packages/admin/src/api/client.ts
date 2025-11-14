@@ -140,6 +140,57 @@ class ApiClient {
       body: JSON.stringify({ id, name, secret }),
     });
   }
+
+  // Create SSE connection for real-time log updates
+  createLogStream(
+    onLog: (log: LogEntry) => void,
+    onError?: (error: Event) => void,
+    onConnect?: () => void
+  ): EventSource {
+    const token = this.getToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const url = API_BASE_URL
+      ? `${API_BASE_URL}/api/logs/stream`
+      : "/api/logs/stream";
+
+    // EventSource doesn't support custom headers, so we pass token as query parameter
+    const eventSourceWithAuth = new EventSource(
+      `${url}?token=${encodeURIComponent(token)}`,
+      {
+        withCredentials: true,
+      } as any
+    );
+
+    eventSourceWithAuth.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "connected") {
+          onConnect?.();
+        } else if (data.type === "log") {
+          onLog(data.log);
+        }
+      } catch (error) {
+        console.error("Error parsing SSE message:", error);
+      }
+    };
+
+    eventSourceWithAuth.onerror = (error) => {
+      onError?.(error);
+      // Try to reconnect after a delay
+      setTimeout(() => {
+        if (eventSourceWithAuth.readyState === EventSource.CLOSED) {
+          // Reconnect by creating a new connection
+          const newStream = this.createLogStream(onLog, onError, onConnect);
+          return newStream;
+        }
+      }, 3000);
+    };
+
+    return eventSourceWithAuth;
+  }
 }
 
 export const apiClient = new ApiClient();

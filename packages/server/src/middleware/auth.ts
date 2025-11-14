@@ -6,8 +6,11 @@ export interface AuthRequest extends Request {
 }
 
 export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+  // Support both Authorization header and query parameter (for SSE)
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const tokenFromHeader = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const tokenFromQuery = req.query.token as string | undefined;
+  const token = tokenFromHeader || tokenFromQuery;
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });

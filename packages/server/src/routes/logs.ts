@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { pool } from "../db/connection.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { LogRequest, LogsQueryParams } from "../types.js";
+import { logBroadcaster } from "../services/logBroadcaster.js";
 
 const router: Router = Router();
 
@@ -52,9 +53,9 @@ router.post("/", async (req: Request, res: Response) => {
     } = logData;
 
     // Insert log
-    await pool.query(
+    const insertResult = await pool.query(
       `INSERT INTO logs (project_id, level, message, timestamp, metadata)
-       VALUES ($1, $2, $3, $4, $5)`,
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, project_id, level, message, timestamp, metadata`,
       [
         projectId,
         level,
@@ -63,6 +64,18 @@ router.post("/", async (req: Request, res: Response) => {
         JSON.stringify(metadata),
       ]
     );
+
+    const newLog = insertResult.rows[0];
+
+    // Broadcast the new log to all connected SSE clients
+    logBroadcaster.broadcastLog({
+      id: newLog.id,
+      "project-id": newLog.project_id,
+      level: newLog.level,
+      message: newLog.message,
+      timestamp: newLog.timestamp,
+      metadata: newLog.metadata,
+    });
 
     res.status(201).json({ success: true });
   } catch (error) {
@@ -179,6 +192,35 @@ router.get(
       console.error("Error fetching projects:", error);
       res.status(500).json({ error: "Internal server error" });
     }
+  }
+);
+
+// GET /api/logs/stream - SSE endpoint for real-time log updates (JWT protected)
+router.get(
+  "/stream",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    // Set headers for SSE
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+
+    // Listen for new logs
+    const onNewLog = (log: any) => {
+      res.write(`data: ${JSON.stringify({ type: "log", log })}\n\n`);
+    };
+
+    logBroadcaster.on("new-log", onNewLog);
+
+    // Clean up on client disconnect
+    req.on("close", () => {
+      logBroadcaster.removeListener("new-log", onNewLog);
+      res.end();
+    });
   }
 );
 
