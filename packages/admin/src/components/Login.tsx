@@ -10,7 +10,6 @@ export default function Login({ onLogin }: LoginProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,20 +17,10 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
-      if (isRegistering) {
-        await apiClient.register(username, password);
-      } else {
-        await apiClient.login(username, password);
-      }
+      await apiClient.login(username, password);
       onLogin();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : isRegistering
-          ? "Registration failed"
-          : "Login failed"
-      );
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }
@@ -60,48 +49,6 @@ export default function Login({ onLogin }: LoginProps) {
         <h1 style={{ marginBottom: "1.5rem", textAlign: "center" }}>
           Featherlog Admin
         </h1>
-        <div
-          style={{
-            marginBottom: "1rem",
-            display: "flex",
-            gap: "0.5rem",
-            borderBottom: "1px solid #eee",
-            paddingBottom: "1rem",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setIsRegistering(false)}
-            style={{
-              flex: 1,
-              padding: "0.5rem",
-              backgroundColor: !isRegistering ? "#007bff" : "transparent",
-              color: !isRegistering ? "white" : "#666",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontWeight: !isRegistering ? "600" : "400",
-            }}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsRegistering(true)}
-            style={{
-              flex: 1,
-              padding: "0.5rem",
-              backgroundColor: isRegistering ? "#007bff" : "transparent",
-              color: isRegistering ? "white" : "#666",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontWeight: isRegistering ? "600" : "400",
-            }}
-          >
-            Register
-          </button>
-        </div>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "1rem" }}>
             <label
@@ -179,14 +126,31 @@ export default function Login({ onLogin }: LoginProps) {
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading
-              ? isRegistering
-                ? "Registering..."
-                : "Logging in..."
-              : isRegistering
-              ? "Register"
-              : "Login"}
+            {loading ? "Logging in..." : "Login"}
           </button>
+          <div
+            style={{
+              marginTop: "1rem",
+              padding: "0.75rem",
+              backgroundColor: "#f8f9fa",
+              borderRadius: "4px",
+              fontSize: "0.875rem",
+              color: "#666",
+              textAlign: "center",
+            }}
+          >
+            Need an account? Create one via CLI:{" "}
+            <code
+              style={{
+                backgroundColor: "#e9ecef",
+                padding: "0.2rem 0.4rem",
+                borderRadius: "3px",
+              }}
+            >
+              docker compose exec server node dist/scripts/create-user.js
+              &lt;username&gt; &lt;password&gt;
+            </code>
+          </div>
         </form>
       </div>
     </div>

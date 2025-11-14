@@ -145,24 +145,22 @@ try {
 
 ### Creating an Admin User
 
-You have two options to create an admin user:
+Admin users must be created via the command line script:
 
-**Option 1: Use the Registration UI (Recommended)**
-
-1. Start the server and admin UI
-2. Navigate to the admin panel (http://localhost:5173 in development, or your configured domain in production)
-3. Click the "Register" tab
-4. Enter a username and password (minimum 6 characters)
-5. Click "Register" - you'll be automatically logged in
-
-**Option 2: Use the Command Line Script**
+**Using the Command Line Script (Recommended)**
 
 ```bash
 cd packages/server
 pnpm create-user admin your-password
 ```
 
-**Option 3: Use SQL directly**
+**In Production (Docker):**
+
+```bash
+docker compose -f docker-compose.prod.yml exec server node dist/scripts/create-user.js admin your-password
+```
+
+**Alternative: Use SQL directly**
 
 ```sql
 -- Note: You'll need to hash the password with bcrypt

@@ -92,19 +92,6 @@ class ApiClient {
     return response;
   }
 
-  async register(username: string, password: string) {
-    const response = await this.request<{
-      token: string;
-      user: { id: number; username: string };
-      message: string;
-    }>("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
-    this.setToken(response.token);
-    return response;
-  }
-
   async getLogs(
     params: {
       "project-id"?: string;
