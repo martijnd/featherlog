@@ -387,4 +387,33 @@ router.put(
   }
 );
 
+// DELETE /api/projects/:id - Delete a project (JWT protected)
+router.delete(
+  "/projects/:id",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      // Check if project exists
+      const existingProject = await pool.query(
+        "SELECT id FROM projects WHERE id = $1",
+        [id]
+      );
+
+      if (existingProject.rows.length === 0) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Delete project (CASCADE will delete associated logs)
+      await pool.query("DELETE FROM projects WHERE id = $1", [id]);
+
+      res.json({ success: true, message: "Project deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 export default router;

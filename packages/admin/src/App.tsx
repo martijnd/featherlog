@@ -4,6 +4,7 @@ import Login from "./components/Login";
 import FilterBar from "./components/FilterBar";
 import LogsTable from "./components/LogsTable";
 import CreateProject from "./components/CreateProject";
+import ProjectsManager from "./components/ProjectsManager";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -12,6 +13,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [isRealtime, setIsRealtime] = useState(true);
+  const [activeView, setActiveView] = useState<"logs" | "projects">("logs");
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Filter state
@@ -214,25 +216,29 @@ function App() {
       >
         <h1>Featherlog Admin</h1>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button
-            onClick={toggleRealtime}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: isRealtime ? "#28a745" : "#6c757d",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-            title={
-              isRealtime
-                ? "Realtime updates enabled"
-                : "Realtime updates disabled"
-            }
-          >
-            {isRealtime ? "● Realtime" : "○ Manual"}
-          </button>
-          <CreateProject onProjectCreated={loadProjects} />
+          {activeView === "logs" && (
+            <button
+              onClick={toggleRealtime}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: isRealtime ? "#28a745" : "#6c757d",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+              title={
+                isRealtime
+                  ? "Realtime updates enabled"
+                  : "Realtime updates disabled"
+              }
+            >
+              {isRealtime ? "● Realtime" : "○ Manual"}
+            </button>
+          )}
+          {activeView === "projects" && (
+            <CreateProject onProjectCreated={loadProjects} />
+          )}
           <button
             onClick={handleLogout}
             style={{
@@ -249,39 +255,93 @@ function App() {
         </div>
       </div>
 
-      <FilterBar
-        projects={projects}
-        selectedProject={selectedProject}
-        selectedLevel={selectedLevel}
-        startDate={startDate}
-        endDate={endDate}
-        onProjectChange={(projectId) => {
-          setSelectedProject(projectId);
-          setOffset(0);
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginBottom: "1.5rem",
+          borderBottom: "2px solid #e9ecef",
         }}
-        onLevelChange={(level) => {
-          setSelectedLevel(level);
-          setOffset(0);
-        }}
-        onStartDateChange={(date) => {
-          setStartDate(date);
-          setOffset(0);
-        }}
-        onEndDateChange={(date) => {
-          setEndDate(date);
-          setOffset(0);
-        }}
-        onClearFilters={handleClearFilters}
-      />
+      >
+        <button
+          onClick={() => setActiveView("logs")}
+          style={{
+            padding: "0.75rem 1.5rem",
+            backgroundColor: "transparent",
+            color: activeView === "logs" ? "#007bff" : "#6c757d",
+            border: "none",
+            borderBottom:
+              activeView === "logs"
+                ? "2px solid #007bff"
+                : "2px solid transparent",
+            cursor: "pointer",
+            fontWeight: activeView === "logs" ? "600" : "400",
+            marginBottom: "-2px",
+          }}
+        >
+          Logs
+        </button>
+        <button
+          onClick={() => setActiveView("projects")}
+          style={{
+            padding: "0.75rem 1.5rem",
+            backgroundColor: "transparent",
+            color: activeView === "projects" ? "#007bff" : "#6c757d",
+            border: "none",
+            borderBottom:
+              activeView === "projects"
+                ? "2px solid #007bff"
+                : "2px solid transparent",
+            cursor: "pointer",
+            fontWeight: activeView === "projects" ? "600" : "400",
+            marginBottom: "-2px",
+          }}
+        >
+          Projects
+        </button>
+      </div>
 
-      <LogsTable
-        logs={logs}
-        loading={loading}
-        total={total}
-        limit={limit}
-        offset={offset}
-        onPageChange={setOffset}
-      />
+      {activeView === "logs" && (
+        <>
+          <FilterBar
+            projects={projects}
+            selectedProject={selectedProject}
+            selectedLevel={selectedLevel}
+            startDate={startDate}
+            endDate={endDate}
+            onProjectChange={(projectId) => {
+              setSelectedProject(projectId);
+              setOffset(0);
+            }}
+            onLevelChange={(level) => {
+              setSelectedLevel(level);
+              setOffset(0);
+            }}
+            onStartDateChange={(date) => {
+              setStartDate(date);
+              setOffset(0);
+            }}
+            onEndDateChange={(date) => {
+              setEndDate(date);
+              setOffset(0);
+            }}
+            onClearFilters={handleClearFilters}
+          />
+
+          <LogsTable
+            logs={logs}
+            loading={loading}
+            total={total}
+            limit={limit}
+            offset={offset}
+            onPageChange={setOffset}
+          />
+        </>
+      )}
+
+      {activeView === "projects" && (
+        <ProjectsManager projects={projects} onProjectUpdated={loadProjects} />
+      )}
     </div>
   );
 }
