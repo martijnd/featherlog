@@ -5,6 +5,19 @@ All notable changes to the Featherlog SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2024-12-14
+
+### Fixed
+
+- **Improved NODE_ENV detection** - The SDK now properly detects `NODE_ENV` in both Vite-based applications and Node.js environments. Vite automatically replaces `process.env.NODE_ENV` at build time based on the build mode, ensuring the correct endpoint is used:
+  - Development mode (`vite dev`): Uses `http://localhost:3000/api/logs`
+  - Production builds (`vite build`): Uses `https://featherlog.lekkerklooien.nl/api/logs`
+  - Node.js environments: Uses runtime `NODE_ENV` value
+
+### Changed
+
+- **Simplified endpoint detection logic** - The SDK now handles environment detection internally, requiring no configuration changes in consuming applications. The SDK automatically works correctly whether you're developing locally or building for production.
+
 ## [2.0.0] - 2024-11-14
 
 ### BREAKING CHANGES
@@ -125,6 +138,7 @@ To migrate from v1.x to v2.0:
 - TypeScript type definitions for IDE autocomplete
 - Clear API documentation
 
+[2.0.1]: https://github.com/martijnd/featherlog/releases/tag/sdk-v2.0.1
 [2.0.0]: https://github.com/martijnd/featherlog/releases/tag/sdk-v2.0.0
 [1.0.2]: https://github.com/martijnd/featherlog/releases/tag/sdk-v1.0.2
 [1.0.1]: https://github.com/martijnd/featherlog/releases/tag/sdk-v1.0.1
