@@ -18,7 +18,6 @@ yarn add featherlog
 import { Logger } from "featherlog";
 
 const logger = new Logger({
-  secret: "your-project-secret",
   "project-id": "your-project-id",
 });
 
@@ -47,7 +46,6 @@ Creates a new Logger instance.
 
 **Options:**
 
-- `secret` (string, required): Your project secret for authentication
 - `project-id` (string, required): Your unique project identifier
 - `endpoint` (string, optional): The Featherlog server endpoint. If not provided, automatically determined based on `NODE_ENV`:
   - `development` (or unset): Uses `FEATHERLOG_ENDPOINT` env var or defaults to `http://localhost:3000/api/logs`

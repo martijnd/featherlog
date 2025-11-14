@@ -6,17 +6,9 @@ import { logBroadcaster } from "../services/logBroadcaster.js";
 
 const router: Router = Router();
 
-// POST /api/logs - Public endpoint for SDK to send logs (validates secret)
+// POST /api/logs - Public endpoint for SDK to send logs (validates origin)
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const secret = req.headers["x-secret"] as string;
-
-    if (!secret) {
-      return res
-        .status(401)
-        .json({ error: "Secret required in X-Secret header" });
-    }
-
     const logData: LogRequest = req.body;
 
     if (!logData["project-id"] || !logData.level || !logData.message) {
@@ -25,9 +17,12 @@ router.post("/", async (req: Request, res: Response) => {
         .json({ error: "Missing required fields: project-id, level, message" });
     }
 
-    // Verify secret matches a project
+    // Get the origin from the request
+    const origin = req.headers.origin || req.headers.referer;
+
+    // Verify project exists and check origin
     const projectResult = await pool.query(
-      "SELECT id, secret FROM projects WHERE id = $1",
+      "SELECT id, origins FROM projects WHERE id = $1",
       [logData["project-id"]]
     );
 
@@ -36,12 +31,48 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     const project = projectResult.rows[0];
+    const allowedOrigins: string[] = project.origins || [];
 
-    // Compare secret (assuming secrets are stored as plain text for now, or hashed)
-    // For simplicity, we'll do plain text comparison, but in production you might want to hash
-    if (project.secret !== secret) {
-      return res.status(401).json({ error: "Invalid secret" });
+    // Require at least one origin (should be enforced by DB constraint, but check anyway)
+    if (allowedOrigins.length === 0) {
+      return res.status(500).json({
+        error: "Project configuration error: no origins configured",
+      });
     }
+
+    // Check if origin is allowed (at least one origin is required)
+    // For browser requests, origin header will be present and must match
+    // For server-side requests (Node.js), origin may not be present - allow if no origin header
+    if (origin) {
+      // Extract origin from referer if needed
+      let originToCheck = origin;
+      if (origin.startsWith("http")) {
+        try {
+          const url = new URL(origin);
+          originToCheck = url.origin;
+        } catch (e) {
+          // If URL parsing fails, use origin as-is
+        }
+      }
+
+      // Check if origin matches any allowed origin (supports wildcards)
+      const isAllowed = allowedOrigins.some((allowedOrigin) => {
+        if (allowedOrigin === "*") return true;
+        if (allowedOrigin.endsWith("*")) {
+          const prefix = allowedOrigin.slice(0, -1);
+          return originToCheck.startsWith(prefix);
+        }
+        return originToCheck === allowedOrigin;
+      });
+
+      if (!isAllowed) {
+        return res.status(403).json({
+          error: "Origin not allowed",
+          detail: `Origin '${originToCheck}' is not in the allowed origins list for this project`,
+        });
+      }
+    }
+    // If no origin header, allow (server-side requests from Node.js SDK)
 
     // Extract metadata (everything except project-id, level, message, timestamp)
     const {
@@ -185,9 +216,16 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const result = await pool.query(
-        "SELECT id, name, created_at FROM projects ORDER BY name"
+        "SELECT id, name, origins, created_at FROM projects ORDER BY name"
       );
-      res.json({ projects: result.rows });
+      res.json({
+        projects: result.rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          origins: row.origins || [],
+          created_at: row.created_at,
+        })),
+      });
     } catch (error) {
       console.error("Error fetching projects:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -230,18 +268,33 @@ router.post(
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { id, name, secret } = req.body;
+      const { id, name, origins } = req.body;
 
-      if (!id || !name || !secret) {
+      if (!id || !name) {
         return res
           .status(400)
-          .json({ error: "Missing required fields: id, name, secret" });
+          .json({ error: "Missing required fields: id, name" });
       }
 
-      if (secret.length < 8) {
-        return res
-          .status(400)
-          .json({ error: "Secret must be at least 8 characters" });
+      // Validate origins array
+      const originsArray = Array.isArray(origins) ? origins : [];
+      if (!Array.isArray(originsArray)) {
+        return res.status(400).json({ error: "Origins must be an array" });
+      }
+
+      // Require at least one origin
+      if (originsArray.length === 0) {
+        return res.status(400).json({
+          error: "At least one origin is required",
+        });
+      }
+
+      // Disallow '*' as a single origin to prevent abuse
+      if (originsArray.length === 1 && originsArray[0] === "*") {
+        return res.status(400).json({
+          error:
+            "Cannot use '*' as the only origin. Specify at least one valid origin.",
+        });
       }
 
       // Check if project already exists
@@ -256,13 +309,79 @@ router.post(
 
       // Create project
       const result = await pool.query(
-        "INSERT INTO projects (id, name, secret) VALUES ($1, $2, $3) RETURNING id, name, created_at",
-        [id, name, secret]
+        "INSERT INTO projects (id, name, origins) VALUES ($1, $2, $3) RETURNING id, name, origins, created_at",
+        [id, name, JSON.stringify(originsArray)]
       );
 
-      res.status(201).json({ project: result.rows[0] });
+      res.status(201).json({
+        project: {
+          id: result.rows[0].id,
+          name: result.rows[0].name,
+          origins: result.rows[0].origins,
+          created_at: result.rows[0].created_at,
+        },
+      });
     } catch (error) {
       console.error("Error creating project:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// PUT /api/projects/:id - Update project origins (JWT protected)
+router.put(
+  "/projects/:id",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { origins } = req.body;
+
+      if (!Array.isArray(origins)) {
+        return res.status(400).json({ error: "Origins must be an array" });
+      }
+
+      // Require at least one origin
+      if (origins.length === 0) {
+        return res.status(400).json({
+          error: "At least one origin is required",
+        });
+      }
+
+      // Disallow '*' as a single origin to prevent abuse
+      if (origins.length === 1 && origins[0] === "*") {
+        return res.status(400).json({
+          error:
+            "Cannot use '*' as the only origin. Specify at least one valid origin.",
+        });
+      }
+
+      // Check if project exists
+      const existingProject = await pool.query(
+        "SELECT id FROM projects WHERE id = $1",
+        [id]
+      );
+
+      if (existingProject.rows.length === 0) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Update project origins
+      const result = await pool.query(
+        "UPDATE projects SET origins = $1 WHERE id = $2 RETURNING id, name, origins, created_at",
+        [JSON.stringify(origins), id]
+      );
+
+      res.json({
+        project: {
+          id: result.rows[0].id,
+          name: result.rows[0].name,
+          origins: result.rows[0].origins,
+          created_at: result.rows[0].created_at,
+        },
+      });
+    } catch (error) {
+      console.error("Error updating project:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }

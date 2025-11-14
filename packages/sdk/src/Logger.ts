@@ -1,5 +1,4 @@
 export interface LoggerOptions {
-  secret: string;
   "project-id": string;
 }
 
@@ -8,19 +7,14 @@ export interface LogMetadata {
 }
 
 export class Logger {
-  private secret: string;
   private projectId: string;
   private endpoint: string;
 
   constructor(options: LoggerOptions) {
-    if (!options || !options.secret) {
-      throw new Error("Logger requires a secret option");
-    }
-    if (!options["project-id"]) {
+    if (!options || !options["project-id"]) {
       throw new Error("Logger requires a project-id option");
     }
 
-    this.secret = options.secret;
     this.projectId = options["project-id"];
 
     // Check for FEATHERLOG_ENDPOINT environment variable first
@@ -59,7 +53,6 @@ export class Logger {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Secret": this.secret,
         },
         body: JSON.stringify({
           "project-id": this.projectId,
@@ -90,7 +83,6 @@ export class Logger {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Secret": this.secret,
         },
         body: JSON.stringify({
           "project-id": this.projectId,
@@ -119,7 +111,6 @@ export class Logger {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Secret": this.secret,
         },
         body: JSON.stringify({
           "project-id": this.projectId,

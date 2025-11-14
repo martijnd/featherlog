@@ -22,26 +22,15 @@ describe("Logger", () => {
   describe("constructor", () => {
     it("should create a Logger instance with valid options", () => {
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
       expect(logger).toBeInstanceOf(Logger);
     });
 
-    it("should throw error if secret is missing", () => {
-      expect(() => {
-        new Logger({
-          secret: "",
-          "project-id": "test-project",
-        } as any);
-      }).toThrow("Logger requires a secret option");
-    });
-
     it("should throw error if project-id is missing", () => {
       expect(() => {
         new Logger({
-          secret: "test-secret",
           "project-id": "",
         } as any);
       }).toThrow("Logger requires a project-id option");
@@ -50,12 +39,11 @@ describe("Logger", () => {
     it("should throw error if options is null", () => {
       expect(() => {
         new Logger(null as any);
-      }).toThrow("Logger requires a secret option");
+      }).toThrow("Logger requires a project-id option");
     });
 
     it("should use development endpoint by default", () => {
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -66,7 +54,6 @@ describe("Logger", () => {
     it("should use production endpoint when NODE_ENV is production", () => {
       process.env.NODE_ENV = "production";
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -78,7 +65,6 @@ describe("Logger", () => {
     it("should use FEATHERLOG_ENDPOINT env var if set", () => {
       process.env.FEATHERLOG_ENDPOINT = "https://custom-endpoint.com/api/logs";
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -96,7 +82,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -109,12 +94,12 @@ describe("Logger", () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Secret": "test-secret",
           },
         })
       );
 
       const callArgs = mockFetch.mock.calls[0];
+      expect(callArgs[1].headers).not.toHaveProperty("X-Secret");
       const body = JSON.parse(callArgs[1].body);
       expect(body).toMatchObject({
         "project-id": "test-project",
@@ -131,7 +116,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -146,11 +130,12 @@ describe("Logger", () => {
     });
 
     it("should silently fail on network error", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -163,14 +148,15 @@ describe("Logger", () => {
     });
 
     it("should silently fail on non-ok response", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -186,7 +172,6 @@ describe("Logger", () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -202,7 +187,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -224,7 +208,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -239,11 +222,12 @@ describe("Logger", () => {
     });
 
     it("should silently fail on error", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -262,7 +246,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -284,7 +267,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -300,11 +282,12 @@ describe("Logger", () => {
     });
 
     it("should silently fail on error", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -323,7 +306,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "test-secret",
         "project-id": "test-project",
       });
 
@@ -341,14 +323,13 @@ describe("Logger", () => {
   });
 
   describe("all log levels", () => {
-    it("should use correct secret in all requests", async () => {
+    it("should not include secret header in requests", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 201,
       });
 
       const logger = new Logger({
-        secret: "my-secret-key",
         "project-id": "my-project",
       });
 
@@ -358,7 +339,7 @@ describe("Logger", () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(3);
       mockFetch.mock.calls.forEach((call) => {
-        expect(call[1].headers["X-Secret"]).toBe("my-secret-key");
+        expect(call[1].headers).not.toHaveProperty("X-Secret");
       });
     });
 
@@ -369,7 +350,6 @@ describe("Logger", () => {
       });
 
       const logger = new Logger({
-        secret: "secret",
         "project-id": "my-project-id",
       });
 
@@ -385,4 +365,3 @@ describe("Logger", () => {
     });
   });
 });
-

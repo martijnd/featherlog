@@ -18,7 +18,7 @@ export interface LogRequest {
 export interface Project {
   id: string;
   name: string;
-  secret: string;
+  origins: string[];
 }
 
 export interface User {

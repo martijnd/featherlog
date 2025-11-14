@@ -20,6 +20,7 @@ export interface LogsResponse {
 export interface Project {
   id: string;
   name: string;
+  origins: string[];
   created_at: string;
 }
 
@@ -133,11 +134,21 @@ class ApiClient {
   async createProject(
     id: string,
     name: string,
-    secret: string
+    origins: string[]
   ): Promise<{ project: Project }> {
     return this.request<{ project: Project }>("/api/logs/projects", {
       method: "POST",
-      body: JSON.stringify({ id, name, secret }),
+      body: JSON.stringify({ id, name, origins }),
+    });
+  }
+
+  async updateProjectOrigins(
+    id: string,
+    origins: string[]
+  ): Promise<{ project: Project }> {
+    return this.request<{ project: Project }>(`/api/logs/projects/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ origins }),
     });
   }
 

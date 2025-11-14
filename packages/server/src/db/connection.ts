@@ -1,12 +1,14 @@
-import pg from 'pg';
-import dotenv from 'dotenv';
+import pg from "pg";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const { Pool } = pg;
 
 export const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL || 'postgresql://postgres:postgres@localhost:5432/featherlog',
+  connectionString:
+    process.env.POSTGRES_URL ||
+    "postgresql://postgres:postgres@localhost:5432/featherlog",
 });
 
 export async function initDatabase() {
@@ -15,9 +17,24 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS projects (
       id VARCHAR(255) PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
-      secret VARCHAR(255) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      origins JSONB NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CHECK (jsonb_array_length(origins) > 0)
     )
+  `);
+
+  // Add constraint if it doesn't exist (for existing databases)
+  await pool.query(`
+    DO $$ 
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'projects_origins_not_empty'
+      ) THEN
+        ALTER TABLE projects ADD CONSTRAINT projects_origins_not_empty 
+          CHECK (jsonb_array_length(origins) > 0);
+      END IF;
+    END $$;
   `);
 
   await pool.query(`
@@ -55,6 +72,5 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level)
   `);
 
-  console.log('Database initialized');
+  console.log("Database initialized");
 }
-

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Logger } from "featherlog";
 
-// Initialize logger - replace with your actual project-id and secret
+// Initialize logger - replace with your actual project-id
 const logger = new Logger({
-  secret: import.meta.env.VITE_FEATHERLOG_SECRET || "demo-secret",
   "project-id": import.meta.env.VITE_FEATHERLOG_PROJECT_ID || "demo-app",
 });
 

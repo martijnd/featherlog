@@ -5,11 +5,13 @@ interface CreateProjectProps {
   onProjectCreated: () => void;
 }
 
-export default function CreateProject({ onProjectCreated }: CreateProjectProps) {
+export default function CreateProject({
+  onProjectCreated,
+}: CreateProjectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [projectName, setProjectName] = useState("");
-  const [secret, setSecret] = useState("");
+  const [origins, setOrigins] = useState<string[]>([""]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -21,11 +23,30 @@ export default function CreateProject({ onProjectCreated }: CreateProjectProps) 
     setLoading(true);
 
     try {
-      await apiClient.createProject(projectId, projectName, secret);
+      // Filter out empty origins
+      const validOrigins = origins.filter((origin) => origin.trim() !== "");
+
+      // Require at least one origin
+      if (validOrigins.length === 0) {
+        setError("At least one origin is required");
+        setLoading(false);
+        return;
+      }
+
+      // Disallow '*' as a single origin to prevent abuse
+      if (validOrigins.length === 1 && validOrigins[0] === "*") {
+        setError(
+          "Cannot use '*' as the only origin. Specify at least one valid origin."
+        );
+        setLoading(false);
+        return;
+      }
+
+      await apiClient.createProject(projectId, projectName, validOrigins);
       setSuccess(true);
       setProjectId("");
       setProjectName("");
-      setSecret("");
+      setOrigins([""]);
       onProjectCreated();
       setTimeout(() => {
         setIsOpen(false);
@@ -42,9 +63,23 @@ export default function CreateProject({ onProjectCreated }: CreateProjectProps) 
     setIsOpen(false);
     setProjectId("");
     setProjectName("");
-    setSecret("");
+    setOrigins([""]);
     setError("");
     setSuccess(false);
+  };
+
+  const addOriginField = () => {
+    setOrigins([...origins, ""]);
+  };
+
+  const removeOriginField = (index: number) => {
+    setOrigins(origins.filter((_, i) => i !== index));
+  };
+
+  const updateOrigin = (index: number, value: string) => {
+    const newOrigins = [...origins];
+    newOrigins[index] = value;
+    setOrigins(newOrigins);
   };
 
   if (!isOpen) {
@@ -180,26 +215,78 @@ export default function CreateProject({ onProjectCreated }: CreateProjectProps) 
                 fontWeight: "500",
               }}
             >
-              Secret *
+              Allowed Origins
             </label>
-            <input
-              type="password"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              required
-              placeholder="your-secret-key"
-              minLength={8}
+            {origins.map((origin, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <input
+                  type="text"
+                  value={origin}
+                  onChange={(e) => updateOrigin(index, e.target.value)}
+                  placeholder={
+                    index === 0
+                      ? "https://example.com (required)"
+                      : "https://another-origin.com"
+                  }
+                  required={index === 0}
+                  style={{
+                    flex: 1,
+                    padding: "0.75rem",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    fontSize: "1rem",
+                  }}
+                />
+                {origins.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeOriginField(index)}
+                    style={{
+                      padding: "0.75rem",
+                      backgroundColor: "#dc3545",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addOriginField}
               style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #ddd",
+                padding: "0.5rem 1rem",
+                backgroundColor: "#6c757d",
+                color: "white",
+                border: "none",
                 borderRadius: "4px",
-                fontSize: "1rem",
+                cursor: "pointer",
+                fontSize: "0.875rem",
               }}
-            />
-            <small style={{ color: "#666", fontSize: "0.875rem" }}>
-              Minimum 8 characters. Use this secret when initializing the Logger
-              in your applications.
+            >
+              + Add Origin
+            </button>
+            <small
+              style={{
+                color: "#666",
+                fontSize: "0.875rem",
+                display: "block",
+                marginTop: "0.5rem",
+              }}
+            >
+              At least one origin is required. Use wildcards like
+              https://*.example.com (but not just '*')
             </small>
           </div>
 
@@ -231,7 +318,13 @@ export default function CreateProject({ onProjectCreated }: CreateProjectProps) 
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              justifyContent: "flex-end",
+            }}
+          >
             <button
               type="button"
               onClick={handleClose}
@@ -269,4 +362,3 @@ export default function CreateProject({ onProjectCreated }: CreateProjectProps) 
     </div>
   );
 }
-
