@@ -5,9 +5,6 @@ import { Logger } from "featherlog";
 const logger = new Logger({
   secret: import.meta.env.VITE_FEATHERLOG_SECRET || "demo-secret",
   "project-id": import.meta.env.VITE_FEATHERLOG_PROJECT_ID || "demo-app",
-  endpoint:
-    import.meta.env.VITE_FEATHERLOG_ENDPOINT ||
-    "http://localhost:3000/api/logs",
 });
 
 function App() {
@@ -93,7 +90,7 @@ function App() {
       setLastError(null);
 
       // Simulate an async operation that fails
-      await new Promise((resolve, reject) => {
+      await new Promise((_, reject) => {
         setTimeout(() => {
           reject(new Error("Async operation failed after 1 second"));
         }, 1000);

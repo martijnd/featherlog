@@ -1,0 +1,36 @@
+# Source files
+src/
+index.ts
+tsconfig.json
+
+# Build artifacts (only dist should be published)
+*.map
+
+# Development files
+node_modules/
+*.log
+.DS_Store
+
+# Test files
+test/
+tests/
+*.test.ts
+*.spec.ts
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Documentation (README.md is included via files field)
+docs/
+

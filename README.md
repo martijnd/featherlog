@@ -44,19 +44,24 @@ cp .env.example .env
 docker-compose up -d postgres
 ```
 
-4. Start the server:
+4. Build the admin UI (required for server to serve it):
+
+```bash
+cd packages/admin
+pnpm build
+```
+
+5. Start the server (serves both API and Admin UI):
 
 ```bash
 cd packages/server
 pnpm dev
 ```
 
-5. Start the admin UI:
+The server will be available at http://localhost:3000
 
-```bash
-cd packages/admin
-pnpm dev
-```
+- API endpoints: http://localhost:3000/api/\*
+- Admin UI: http://localhost:3000
 
 6. Build the SDK (required for demo):
 
@@ -115,8 +120,9 @@ docker-compose up -d
 This will start:
 
 - PostgreSQL database on port 5432
-- Backend server on port 3000
-- Admin UI on port 80
+- Server on port 3000 (serves both API and Admin UI)
+  - API endpoints: `http://localhost:3000/api/*`
+  - Admin UI: `http://localhost:3000`
 
 ## SDK Usage
 

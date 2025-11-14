@@ -11,13 +11,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "pnpm build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -25,11 +27,23 @@
     "nodejs",
     "typescript",
     "sdk",
-    "error-logging"
+    "error-logging",
+    "logger",
+    "remote-logging",
+    "centralized-logging"
   ],
   "author": "Martijn Dorsman",
   "license": "ISC",
-  "description": "Featherlog is a simple logging SDK for Node.js that sends logs to your VPS.",
+  "description": "A simple logging SDK for Node.js that sends logs to your Featherlog server",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/martijndorsman/featherlog.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/martijndorsman/featherlog/issues"
+  },
+  "homepage": "https://github.com/martijndorsman/featherlog#readme",
   "devDependencies": {
     "typescript": "^5.3.0",
     "@types/node": "^20.0.0"

@@ -34,16 +34,5 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  admin:
-    build:
-      context: .
-      dockerfile: packages/admin/Dockerfile
-    container_name: featherlog-admin
-    ports:
-      - "80:80"
-    depends_on:
-      - server
-    restart: unless-stopped
-
 volumes:
   postgres_data:

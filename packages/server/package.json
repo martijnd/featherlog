@@ -5,6 +5,8 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc",
+    "build:admin": "pnpm --filter admin build",
+    "build:all": "pnpm build:admin && pnpm build",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "create-user": "tsx src/scripts/create-user.ts",

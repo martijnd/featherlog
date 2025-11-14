@@ -6,13 +6,26 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    fs: {
+      // Allow Vite to access files outside the demo package
+      allow: [".."],
+    },
   },
   resolve: {
     alias: {
-      featherlog: path.resolve(__dirname, "../sdk/dist/index.js"),
+      // Point to SDK entry point - Vite will process TypeScript on the fly
+      featherlog: path.resolve(__dirname, "../sdk/index.ts"),
     },
   },
   optimizeDeps: {
-    include: ["featherlog"],
+    // Exclude featherlog from optimization to ensure it uses the latest code
+    exclude: ["featherlog"],
+  },
+  define: {
+    // Ensure NODE_ENV is set to "development" in dev mode
+    // This helps the SDK detect the correct environment
+    "process.env.NODE_ENV": JSON.stringify(
+      process.env.NODE_ENV || "development"
+    ),
   },
 });
