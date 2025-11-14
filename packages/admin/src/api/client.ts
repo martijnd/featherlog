@@ -150,6 +150,17 @@ class ApiClient {
     );
   }
 
+  async clearProjectLogs(
+    id: string
+  ): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    return this.request<{ success: boolean; message: string; deletedCount: number }>(
+      `/api/logs/projects/${id}/logs`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
   // Create SSE connection for real-time log updates
   createLogStream(
     onLog: (log: LogEntry) => void,

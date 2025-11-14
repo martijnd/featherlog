@@ -15,6 +15,7 @@ export default function ProjectsManager({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearingLogsId, setClearingLogsId] = useState<string | null>(null);
 
   const startEdit = (project: Project) => {
     setEditingProject(project);
@@ -81,6 +82,25 @@ export default function ProjectsManager({
       setError(err instanceof Error ? err.message : "Failed to delete project");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleClearLogs = async (projectId: string, projectName: string) => {
+    if (!confirm(`Are you sure you want to clear all logs for project "${projectName}" (${projectId})? This action cannot be undone.`)) {
+      return;
+    }
+
+    setClearingLogsId(projectId);
+    setError("");
+
+    try {
+      const result = await apiClient.clearProjectLogs(projectId);
+      alert(`Successfully cleared ${result.deletedCount} log(s) for project "${projectName}"`);
+      onProjectUpdated(); // Refresh to update any log counts if displayed
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear logs");
+    } finally {
+      setClearingLogsId(null);
     }
   };
 
@@ -277,7 +297,7 @@ export default function ProjectsManager({
                         Created: {new Date(project.created_at).toLocaleDateString()}
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                       <button
                         onClick={() => startEdit(project)}
                         style={{
@@ -291,6 +311,23 @@ export default function ProjectsManager({
                         }}
                       >
                         Edit
+                      </button>
+                      <button
+                        onClick={() => handleClearLogs(project.id, project.name)}
+                        disabled={clearingLogsId === project.id}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          backgroundColor: "#ffc107",
+                          color: "#333",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: clearingLogsId === project.id ? "not-allowed" : "pointer",
+                          opacity: clearingLogsId === project.id ? 0.6 : 1,
+                          fontSize: "0.875rem",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {clearingLogsId === project.id ? "Clearing..." : "Clear Logs"}
                       </button>
                       <button
                         onClick={() => handleDelete(project.id)}

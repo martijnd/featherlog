@@ -416,4 +416,42 @@ router.delete(
   }
 );
 
+// DELETE /api/projects/:id/logs - Clear all logs for a project (JWT protected)
+router.delete(
+  "/projects/:id/logs",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      // Check if project exists
+      const existingProject = await pool.query(
+        "SELECT id FROM projects WHERE id = $1",
+        [id]
+      );
+
+      if (existingProject.rows.length === 0) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Delete all logs for this project
+      const deleteResult = await pool.query(
+        "DELETE FROM logs WHERE project_id = $1 RETURNING id",
+        [id]
+      );
+
+      const deletedCount = deleteResult.rowCount || 0;
+
+      res.json({
+        success: true,
+        message: `Successfully deleted ${deletedCount} log(s) for project ${id}`,
+        deletedCount,
+      });
+    } catch (error) {
+      console.error("Error clearing logs:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 export default router;
