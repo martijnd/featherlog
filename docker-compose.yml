@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: featherlog-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: featherlog
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    container_name: featherlog-server
+    environment:
+      PORT: 3000
+      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/featherlog
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: .
+      dockerfile: packages/admin/Dockerfile
+    container_name: featherlog-admin
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

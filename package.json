@@ -1,0 +1,19 @@
+{
+  "name": "featherlog-monorepo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:sdk": "pnpm --filter featherlog build",
+    "build:server": "pnpm --filter server build",
+    "build:admin": "pnpm --filter admin build",
+    "dev:demo": "pnpm --filter demo dev"
+  },
+  "keywords": [
+    "logging",
+    "monorepo"
+  ],
+  "author": "Martijn Dorsman",
+  "license": "ISC"
+}
