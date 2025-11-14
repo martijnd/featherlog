@@ -21,11 +21,4 @@ export default defineConfig({
     // Exclude featherlog from optimization to ensure it uses the latest code
     exclude: ["featherlog"],
   },
-  define: {
-    // Ensure NODE_ENV is set to "development" in dev mode
-    // This helps the SDK detect the correct environment
-    "process.env.NODE_ENV": JSON.stringify(
-      process.env.NODE_ENV || "development"
-    ),
-  },
 });
