@@ -14,12 +14,10 @@ export default function CreateProject({
   const [origins, setOrigins] = useState<string[]>([""]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccess(false);
     setLoading(true);
 
     try {
@@ -43,15 +41,14 @@ export default function CreateProject({
       }
 
       await apiClient.createProject(projectId, projectName, validOrigins);
-      setSuccess(true);
+      // Close modal immediately and reset form
+      setIsOpen(false);
       setProjectId("");
       setProjectName("");
       setOrigins([""]);
+      setError("");
+      // Call callback to refresh projects list and show toast
       onProjectCreated();
-      setTimeout(() => {
-        setIsOpen(false);
-        setSuccess(false);
-      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
@@ -65,7 +62,6 @@ export default function CreateProject({
     setProjectName("");
     setOrigins([""]);
     setError("");
-    setSuccess(false);
   };
 
   const addOriginField = () => {
@@ -301,20 +297,6 @@ export default function CreateProject({
               }}
             >
               {error}
-            </div>
-          )}
-
-          {success && (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "0.75rem",
-                backgroundColor: "#efe",
-                color: "#3c3",
-                borderRadius: "4px",
-              }}
-            >
-              Project created successfully!
             </div>
           )}
 

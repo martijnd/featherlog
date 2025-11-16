@@ -28,8 +28,23 @@ export class Logger {
       return;
     }
 
-    this.endpoint = "https://featherlog.lekkerklooien.nl/api/logs";
-    // this.endpoint = "http://localhost:3000/api/logs";
+    // Detect if we're in production
+    // In browser/Vite: process.env.NODE_ENV is replaced at build time
+    // In Node.js: process.env.NODE_ENV is available at runtime
+    // Default to development (localhost) unless explicitly production
+    const nodeEnv =
+      (typeof process !== "undefined" && process.env && process.env.NODE_ENV) ||
+      "development";
+
+    // In browser environments, if process.env is not available or NODE_ENV is not set,
+    // we're likely in development. Only use production endpoint if explicitly "production"
+    if (nodeEnv === "production") {
+      // Production: default production endpoint
+      this.endpoint = "https://featherlog.lekkerklooien.nl/api/logs";
+    } else {
+      // Development: default to localhost
+      this.endpoint = "http://localhost:3000/api/logs";
+    }
   }
 
   async error(message: string, metadata: LogMetadata = {}): Promise<void> {

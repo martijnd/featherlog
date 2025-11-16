@@ -16,6 +16,21 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// CORS configuration
+// Server handles CORS in all environments (not relying on Nginx)
+// - If CORS_ORIGIN is set, use it (comma-separated list of origins)
+// - In development, default to Vite dev servers
+// - In production, CORS_ORIGIN should be set explicitly
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()) // Allow custom origins from env
+    : process.env.NODE_ENV === "production"
+    ? true // Production: allow all origins if CORS_ORIGIN not set (you should set CORS_ORIGIN in production!)
+    : ["http://localhost:5173", "http://localhost:5174"], // Development: allow Vite dev servers
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // API Routes (must come before static files)

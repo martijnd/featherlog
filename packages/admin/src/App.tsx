@@ -14,6 +14,7 @@ function App() {
   const [total, setTotal] = useState(0);
   const [isRealtime, setIsRealtime] = useState(true);
   const [activeView, setActiveView] = useState<"logs" | "projects">("logs");
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Filter state
@@ -193,6 +194,18 @@ function App() {
     setOffset(0);
   };
 
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
+  const handleProjectCreated = () => {
+    loadProjects();
+    showToast("Project created successfully!", "success");
+  };
+
   if (!isAuthenticated) {
     return <Login onLogin={() => setIsAuthenticated(true)} />;
   }
@@ -206,6 +219,57 @@ function App() {
         margin: "0 auto",
       }}
     >
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            top: "1rem",
+            right: "1rem",
+            backgroundColor: toast.type === "success" ? "#28a745" : "#dc3545",
+            color: "white",
+            padding: "1rem 1.5rem",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            maxWidth: "400px",
+            transform: "translateX(0)",
+            transition: "transform 0.3s ease-out, opacity 0.3s ease-out",
+            opacity: 1,
+          }}
+        >
+          <span style={{ fontSize: "1.25rem", flexShrink: 0 }}>
+            {toast.type === "success" ? "✓" : "✗"}
+          </span>
+          <span style={{ flex: 1 }}>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "white",
+              fontSize: "1.25rem",
+              cursor: "pointer",
+              padding: "0",
+              marginLeft: "0.5rem",
+              lineHeight: "1",
+              flexShrink: 0,
+              opacity: 0.8,
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.opacity = "1";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.opacity = "0.8";
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -237,7 +301,7 @@ function App() {
             </button>
           )}
           {activeView === "projects" && (
-            <CreateProject onProjectCreated={loadProjects} />
+            <CreateProject onProjectCreated={handleProjectCreated} />
           )}
           <button
             onClick={handleLogout}
