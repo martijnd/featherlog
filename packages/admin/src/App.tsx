@@ -3,6 +3,7 @@ import { apiClient, LogEntry, Project } from "./api/client";
 import Login from "./components/Login";
 import FilterBar from "./components/FilterBar";
 import LogsTable from "./components/LogsTable";
+import LogDetail from "./components/LogDetail";
 import CreateProject from "./components/CreateProject";
 import ProjectsManager from "./components/ProjectsManager";
 
@@ -14,7 +15,11 @@ function App() {
   const [total, setTotal] = useState(0);
   const [isRealtime, setIsRealtime] = useState(true);
   const [activeView, setActiveView] = useState<"logs" | "projects">("logs");
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Filter state
@@ -68,6 +73,7 @@ function App() {
     // Close existing connection if any
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
 
     try {
@@ -85,9 +91,21 @@ function App() {
             setTotal((prevTotal) => prevTotal + 1);
           }
         },
-        (error) => {
-          console.error("SSE error:", error);
-          // SSE will auto-reconnect
+        (_error) => {
+          // Only reconnect if we're still in realtime mode and connection was actually established
+          // This prevents reconnecting during normal page load interruptions
+          if (
+            isRealtime &&
+            eventSourceRef.current?.readyState === EventSource.CLOSED
+          ) {
+            console.warn("SSE connection lost, attempting to reconnect...");
+            // Attempt to reconnect after a delay
+            setTimeout(() => {
+              if (isRealtime) {
+                startRealtimeUpdates();
+              }
+            }, 3000);
+          }
         },
         () => {
           console.log("SSE connected");
@@ -194,7 +212,10 @@ function App() {
     setOffset(0);
   };
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
+  const showToast = (
+    message: string,
+    type: "success" | "error" = "success"
+  ) => {
     setToast({ message, type });
     setTimeout(() => {
       setToast(null);
@@ -399,12 +420,18 @@ function App() {
             limit={limit}
             offset={offset}
             onPageChange={setOffset}
+            onLogClick={setSelectedLog}
           />
         </>
       )}
 
       {activeView === "projects" && (
         <ProjectsManager projects={projects} onProjectUpdated={loadProjects} />
+      )}
+
+      {/* Log Detail Modal */}
+      {selectedLog && (
+        <LogDetail log={selectedLog} onClose={() => setSelectedLog(null)} />
       )}
     </div>
   );

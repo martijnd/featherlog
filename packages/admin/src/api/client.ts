@@ -184,10 +184,13 @@ class ApiClient {
       } as any
     );
 
+    let isConnected = false;
+
     eventSourceWithAuth.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "connected") {
+          isConnected = true;
           onConnect?.();
         } else if (data.type === "log") {
           onLog(data.log);
@@ -198,15 +201,21 @@ class ApiClient {
     };
 
     eventSourceWithAuth.onerror = (error) => {
-      onError?.(error);
-      // Try to reconnect after a delay
-      setTimeout(() => {
-        if (eventSourceWithAuth.readyState === EventSource.CLOSED) {
-          // Reconnect by creating a new connection
-          const newStream = this.createLogStream(onLog, onError, onConnect);
-          return newStream;
-        }
-      }, 3000);
+      // EventSource fires error events for various reasons:
+      // - CONNECTING state: connection is being established (normal, ignore)
+      // - OPEN state: connection is open but might have network issues
+      // - CLOSED state: connection was closed (could be normal disconnect or error)
+      
+      const readyState = eventSourceWithAuth.readyState;
+      
+      // Only notify about errors if connection was previously established and now closed
+      // This avoids logging normal connection interruptions during page load
+      if (readyState === EventSource.CLOSED && isConnected) {
+        // Connection was established but is now closed - notify caller to handle reconnection
+        onError?.(error);
+      }
+      // For CONNECTING state, errors are normal during initial connection - ignore
+      // For OPEN state with errors, EventSource will handle retries automatically
     };
 
     return eventSourceWithAuth;
