@@ -144,7 +144,15 @@ export default function LogDetail({ log, onClose }: LogDetailProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return {
-      full: date.toLocaleString(),
+      full: date.toLocaleString(undefined, {
+        hour12: false,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
       iso: date.toISOString(),
       relative: getRelativeTime(date),
     };

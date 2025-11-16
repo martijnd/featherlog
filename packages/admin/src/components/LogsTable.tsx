@@ -38,56 +38,96 @@ export default function LogsTable({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+    return new Date(dateString).toLocaleString(undefined, {
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   };
 
-  // Group logs by message, level, project-id, and metadata
+  // Group consecutive logs by message, level, project-id, and metadata
+  // This preserves chronological order while grouping identical consecutive logs
   const groupLogs = (logs: LogEntry[]): (LogEntry | GroupedLogEntry)[] => {
-    const groups = new Map<string, LogEntry[]>();
-
-    logs.forEach((log) => {
-      // Create a key from message, level, project-id, and normalized metadata
-      const metadataKey = JSON.stringify(
-        log.metadata || {},
-        Object.keys(log.metadata || {}).sort()
-      );
-      const groupKey = `${log["project-id"]}|${log.level}|${log.message}|${metadataKey}`;
-
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, []);
-      }
-      groups.get(groupKey)!.push(log);
-    });
-
-    const result: (LogEntry | GroupedLogEntry)[] = [];
-
-    groups.forEach((groupedLogs) => {
-      if (groupedLogs.length > 1) {
-        // Sort by timestamp to get the first and last occurrence
-        const sorted = [...groupedLogs].sort(
-          (a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
-        const firstOccurrence = sorted[0];
-        const lastOccurrence = sorted[sorted.length - 1];
-
-        // Use the most recent timestamp for display, but keep reference to first occurrence
-        result.push({
-          ...lastOccurrence, // Use most recent for display (timestamp, id, etc.)
-          count: groupedLogs.length,
-          firstOccurrence: firstOccurrence, // Keep reference to first for detail view
-        } as GroupedLogEntry);
-      } else {
-        result.push(groupedLogs[0]);
-      }
-    });
-
-    // Sort by timestamp (most recent first)
-    return result.sort((a, b) => {
+    // First, sort logs chronologically (most recent first)
+    const sortedLogs = [...logs].sort((a, b) => {
       const aTime = new Date(a.timestamp).getTime();
       const bTime = new Date(b.timestamp).getTime();
       return bTime - aTime;
     });
+
+    const result: (LogEntry | GroupedLogEntry)[] = [];
+    let currentGroup: LogEntry[] = [];
+    let currentGroupKey: string | null = null;
+
+    const getGroupKey = (log: LogEntry): string => {
+      const metadataKey = JSON.stringify(
+        log.metadata || {},
+        Object.keys(log.metadata || {}).sort()
+      );
+      return `${log["project-id"]}|${log.level}|${log.message}|${metadataKey}`;
+    };
+
+    sortedLogs.forEach((log) => {
+      const groupKey = getGroupKey(log);
+
+      if (currentGroupKey === groupKey) {
+        // Same as current group, add to it
+        currentGroup.push(log);
+      } else {
+        // Different group, finalize current group if it exists
+        if (currentGroup.length > 0) {
+          if (currentGroup.length > 1) {
+            // Group has multiple logs, create grouped entry
+            const sortedGroup = [...currentGroup].sort(
+              (a, b) =>
+                new Date(a.timestamp).getTime() -
+                new Date(b.timestamp).getTime()
+            );
+            const firstOccurrence = sortedGroup[0];
+            const lastOccurrence = sortedGroup[sortedGroup.length - 1];
+
+            result.push({
+              ...lastOccurrence, // Use most recent for display
+              count: currentGroup.length,
+              firstOccurrence: firstOccurrence,
+            } as GroupedLogEntry);
+          } else {
+            // Single log, add as-is
+            result.push(currentGroup[0]);
+          }
+        }
+
+        // Start new group
+        currentGroup = [log];
+        currentGroupKey = groupKey;
+      }
+    });
+
+    // Finalize the last group
+    if (currentGroup.length > 0) {
+      if (currentGroup.length > 1) {
+        const sortedGroup = [...currentGroup].sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        const firstOccurrence = sortedGroup[0];
+        const lastOccurrence = sortedGroup[sortedGroup.length - 1];
+
+        result.push({
+          ...lastOccurrence,
+          count: currentGroup.length,
+          firstOccurrence: firstOccurrence,
+        } as GroupedLogEntry);
+      } else {
+        result.push(currentGroup[0]);
+      }
+    }
+
+    return result;
   };
 
   const groupedLogs = groupLogs(logs);
@@ -174,7 +214,8 @@ export default function LogsTable({
             <tbody>
               {groupedLogs.map((log) => {
                 const grouped = isGrouped(log);
-                const displayLog = grouped ? log.firstOccurrence : log;
+                // When grouped, the log already contains the last occurrence's data
+                const displayLog = log;
 
                 return (
                   <tr
