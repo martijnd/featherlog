@@ -23,11 +23,10 @@ const PORT = process.env.PORT || 3000;
 const corsOptions = {
   origin: (
     origin: string | undefined,
-    callback: (err: Error | null, allow?: boolean | string) => void
+    callback: (err: Error | null, allow?: boolean) => void
   ) => {
     // Allow all origins - validation happens in the route handler based on project configuration
-    // Echo back the origin (or allow all if no origin) to support credentials
-    callback(null, origin || true);
+    callback(null, true);
   },
   credentials: true,
 };
