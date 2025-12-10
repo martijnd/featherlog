@@ -18,15 +18,16 @@ const PORT = process.env.PORT || 3000;
 
 // CORS configuration
 // Server handles CORS in all environments (not relying on Nginx)
-// - If CORS_ORIGIN is set, use it (comma-separated list of origins)
-// - In development, default to Vite dev servers
-// - In production, CORS_ORIGIN should be set explicitly
+// We allow all origins here - actual origin validation happens in the /api/logs route
+// based on the project's allowed origins list
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()) // Allow custom origins from env
-    : process.env.NODE_ENV === "production"
-    ? true // Production: allow all origins if CORS_ORIGIN not set (you should set CORS_ORIGIN in production!)
-    : ["http://localhost:5173", "http://localhost:5174"], // Development: allow Vite dev servers
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void
+  ) => {
+    // Allow all origins - validation happens in the route handler based on project configuration
+    callback(null, true);
+  },
   credentials: true,
 };
 
