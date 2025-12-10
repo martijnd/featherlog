@@ -30,7 +30,8 @@ services:
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-featherlog}
       JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: production
-    # No port mapping - Nginx will proxy to this container
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
