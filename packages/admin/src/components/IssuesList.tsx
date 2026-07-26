@@ -8,6 +8,9 @@ interface IssuesListProps {
   onLogClick?: (log: LogEntry) => void;
   /** Bump to reload issues (e.g. after realtime capture) */
   refreshKey?: number;
+  /** Expand this fingerprint when present (e.g. dashboard click-through) */
+  expandFingerprint?: string | null;
+  onExpandFingerprintHandled?: () => void;
 }
 
 export default function IssuesList({
@@ -16,6 +19,8 @@ export default function IssuesList({
   onProjectChange,
   onLogClick,
   refreshKey = 0,
+  expandFingerprint = null,
+  onExpandFingerprintHandled,
 }: IssuesListProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,8 +39,21 @@ export default function IssuesList({
 
   useEffect(() => {
     setOffset(0);
-    setExpandedFingerprint(null);
+    if (!expandFingerprint) {
+      setExpandedFingerprint(null);
+    }
   }, [selectedProject]);
+
+  useEffect(() => {
+    if (!expandFingerprint || loading) return;
+    const issue = issues.find((i) => i.fingerprint === expandFingerprint);
+    if (!issue) {
+      onExpandFingerprintHandled?.();
+      return;
+    }
+    setExpandedFingerprint(expandFingerprint);
+    onExpandFingerprintHandled?.();
+  }, [expandFingerprint, issues, loading]);
 
   useEffect(() => {
     if (!expandedFingerprint) return;
@@ -43,6 +61,7 @@ export default function IssuesList({
     if (!issue) return;
 
     let cancelled = false;
+    setOccurrencesLoading(true);
     (async () => {
       try {
         const response = await apiClient.getIssueOccurrences(
@@ -54,7 +73,9 @@ export default function IssuesList({
         );
         if (!cancelled) setOccurrences(response.logs);
       } catch {
-        // keep existing occurrences on refresh failure
+        if (!cancelled) setOccurrences([]);
+      } finally {
+        if (!cancelled) setOccurrencesLoading(false);
       }
     })();
 

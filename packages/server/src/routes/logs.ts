@@ -262,6 +262,137 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
+type StatsRange = "24h" | "7d" | "30d";
+
+function parseStatsRange(value: unknown): StatsRange {
+  if (value === "24h" || value === "7d" || value === "30d") return value;
+  return "7d";
+}
+
+function getStatsWindow(range: StatsRange): {
+  startDate: Date;
+  endDate: Date;
+  truncUnit: "hour" | "day";
+  stepInterval: "1 hour" | "1 day";
+} {
+  const endDate = new Date();
+  const startDate = new Date(endDate);
+  if (range === "24h") {
+    startDate.setTime(endDate.getTime() - 24 * 60 * 60 * 1000);
+    return {
+      startDate,
+      endDate,
+      truncUnit: "hour",
+      stepInterval: "1 hour",
+    };
+  }
+  if (range === "30d") {
+    startDate.setTime(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  } else {
+    startDate.setTime(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+  return {
+    startDate,
+    endDate,
+    truncUnit: "day",
+    stepInterval: "1 day",
+  };
+}
+
+// GET /api/logs/stats - Dashboard aggregates (JWT protected)
+router.get(
+  "/stats",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const range = parseStatsRange(req.query.range);
+      const projectId = req.query["project-id"] as string | undefined;
+      const { startDate, endDate, truncUnit, stepInterval } =
+        getStatsWindow(range);
+
+      // truncUnit / stepInterval are fixed literals from getStatsWindow
+      const filterParams: unknown[] = [startDate, endDate];
+      let projectClause = "";
+      if (projectId) {
+        projectClause = " AND project_id = $3";
+        filterParams.push(projectId);
+      }
+
+      const totalsResult = await pool.query(
+        `
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE level = 'error')::int AS error,
+          COUNT(*) FILTER (WHERE level = 'warn')::int AS warn,
+          COUNT(*) FILTER (WHERE level = 'info')::int AS info
+        FROM logs
+        WHERE timestamp >= $1 AND timestamp <= $2${projectClause}
+        `,
+        filterParams
+      );
+
+      const seriesResult = await pool.query(
+        `
+        WITH buckets AS (
+          SELECT generate_series(
+            date_trunc('${truncUnit}', $1::timestamp),
+            date_trunc('${truncUnit}', $2::timestamp),
+            '${stepInterval}'::interval
+          ) AS bucket
+        ),
+        counts AS (
+          SELECT
+            date_trunc('${truncUnit}', timestamp) AS bucket,
+            COUNT(*) FILTER (WHERE level = 'error')::int AS error,
+            COUNT(*) FILTER (WHERE level = 'warn')::int AS warn,
+            COUNT(*) FILTER (WHERE level = 'info')::int AS info
+          FROM logs
+          WHERE timestamp >= $1 AND timestamp <= $2${projectClause}
+          GROUP BY 1
+        )
+        SELECT
+          b.bucket,
+          COALESCE(c.error, 0)::int AS error,
+          COALESCE(c.warn, 0)::int AS warn,
+          COALESCE(c.info, 0)::int AS info
+        FROM buckets b
+        LEFT JOIN counts c ON c.bucket = b.bucket
+        ORDER BY b.bucket ASC
+        `,
+        filterParams
+      );
+
+      const totals = totalsResult.rows[0] || {
+        total: 0,
+        error: 0,
+        warn: 0,
+        info: 0,
+      };
+
+      res.json({
+        range,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        totals: {
+          total: totals.total,
+          error: totals.error,
+          warn: totals.warn,
+          info: totals.info,
+        },
+        series: seriesResult.rows.map((row) => ({
+          bucket: new Date(row.bucket).toISOString(),
+          error: row.error,
+          warn: row.warn,
+          info: row.info,
+        })),
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 // GET /api/logs/issues - Aggregated issues by fingerprint (JWT protected)
 router.get(
   "/issues",

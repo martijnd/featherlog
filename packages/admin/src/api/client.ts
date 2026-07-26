@@ -43,6 +43,26 @@ export interface Project {
   created_at: string;
 }
 
+export type DashboardRange = "24h" | "7d" | "30d";
+
+export interface DashboardStats {
+  range: DashboardRange;
+  startDate: string;
+  endDate: string;
+  totals: {
+    total: number;
+    error: number;
+    warn: number;
+    info: number;
+  };
+  series: Array<{
+    bucket: string;
+    error: number;
+    warn: number;
+    info: number;
+  }>;
+}
+
 class ApiClient {
   private token: string | null = null;
 
@@ -143,6 +163,23 @@ class ApiClient {
 
   async getProjects(): Promise<{ projects: Project[] }> {
     return this.request<{ projects: Project[] }>("/api/logs/projects");
+  }
+
+  async getDashboardStats(
+    params: {
+      "project-id"?: string;
+      range?: DashboardRange;
+    } = {}
+  ): Promise<DashboardStats> {
+    const queryParams = new URLSearchParams();
+    if (params["project-id"])
+      queryParams.append("project-id", params["project-id"]);
+    if (params.range) queryParams.append("range", params.range);
+
+    const qs = queryParams.toString();
+    return this.request<DashboardStats>(
+      `/api/logs/stats${qs ? `?${qs}` : ""}`
+    );
   }
 
   async getIssues(

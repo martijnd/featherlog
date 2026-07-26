@@ -7,6 +7,7 @@ import LogDetail from "./components/LogDetail";
 import CreateProject from "./components/CreateProject";
 import ProjectsManager from "./components/ProjectsManager";
 import IssuesList from "./components/IssuesList";
+import Dashboard, { DashboardLogsNav } from "./components/Dashboard";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -15,15 +16,22 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [isRealtime, setIsRealtime] = useState(true);
-  const [activeView, setActiveView] = useState<"logs" | "issues" | "projects">(
-    "logs"
-  );
+  const [activeView, setActiveView] = useState<
+    "dashboard" | "logs" | "issues" | "projects"
+  >("dashboard");
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
   } | null>(null);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
   const [issuesRefreshKey, setIssuesRefreshKey] = useState(0);
+  const [expandIssueFingerprint, setExpandIssueFingerprint] = useState<
+    string | null
+  >(null);
+  const [dashboardLiveEvent, setDashboardLiveEvent] = useState<{
+    seq: number;
+    log: LogEntry;
+  } | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Filter state
@@ -110,6 +118,12 @@ function App() {
           if (newLog.fingerprint) {
             setIssuesRefreshKey((k) => k + 1);
           }
+
+          // Push live log to dashboard for incremental updates
+          setDashboardLiveEvent((prev) => ({
+            seq: (prev?.seq ?? 0) + 1,
+            log: newLog,
+          }));
         },
         (_error) => {
           // Only reconnect if we're still in realtime mode and connection was actually established
@@ -271,6 +285,25 @@ function App() {
     setOffset(0);
   };
 
+  const navigateToLogsFromDashboard = (nav: DashboardLogsNav) => {
+    setSelectedLevel(nav.level ?? "");
+    setStartDate(nav.startDate);
+    setEndDate(nav.endDate);
+    setRequestId("");
+    setWhereFilters([]);
+    setOffset(0);
+    setActiveView("logs");
+  };
+
+  const navigateToIssueFromDashboard = (
+    fingerprint: string,
+    projectId: string
+  ) => {
+    setSelectedProject(projectId);
+    setExpandIssueFingerprint(fingerprint);
+    setActiveView("issues");
+  };
+
   const showToast = (
     message: string,
     type: "success" | "error" = "success"
@@ -360,7 +393,9 @@ function App() {
       >
         <h1>Featherlog Admin</h1>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {(activeView === "logs" || activeView === "issues") && (
+          {(activeView === "dashboard" ||
+            activeView === "logs" ||
+            activeView === "issues") && (
             <button
               onClick={toggleRealtime}
               style={{
@@ -407,6 +442,24 @@ function App() {
           borderBottom: "2px solid #e9ecef",
         }}
       >
+        <button
+          onClick={() => setActiveView("dashboard")}
+          style={{
+            padding: "0.75rem 1.5rem",
+            backgroundColor: "transparent",
+            color: activeView === "dashboard" ? "#007bff" : "#6c757d",
+            border: "none",
+            borderBottom:
+              activeView === "dashboard"
+                ? "2px solid #007bff"
+                : "2px solid transparent",
+            cursor: "pointer",
+            fontWeight: activeView === "dashboard" ? "600" : "400",
+            marginBottom: "-2px",
+          }}
+        >
+          Dashboard
+        </button>
         <button
           onClick={() => setActiveView("logs")}
           style={{
@@ -462,6 +515,18 @@ function App() {
           Projects
         </button>
       </div>
+
+      {activeView === "dashboard" && (
+        <Dashboard
+          projects={projects}
+          selectedProject={selectedProject}
+          onProjectChange={setSelectedProject}
+          onLogClick={setSelectedLog}
+          liveEvent={isRealtime ? dashboardLiveEvent : null}
+          onNavigateToLogs={navigateToLogsFromDashboard}
+          onNavigateToIssue={navigateToIssueFromDashboard}
+        />
+      )}
 
       {activeView === "logs" && (
         <>
@@ -519,6 +584,8 @@ function App() {
           onProjectChange={setSelectedProject}
           onLogClick={setSelectedLog}
           refreshKey={issuesRefreshKey}
+          expandFingerprint={expandIssueFingerprint}
+          onExpandFingerprintHandled={() => setExpandIssueFingerprint(null)}
         />
       )}
 
