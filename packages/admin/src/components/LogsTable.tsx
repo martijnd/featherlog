@@ -28,7 +28,7 @@ export default function LogsTable({
   onPageChange,
   onLogClick,
 }: LogsTableProps) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -53,6 +53,15 @@ export default function LogsTable({
       minute: "2-digit",
       second: "2-digit",
     });
+  };
+
+  // Stable across new occurrences so expand state / DOM identity survive realtime updates
+  const getGroupKey = (log: LogEntry): string => {
+    const metadataKey = JSON.stringify(
+      log.metadata || {},
+      Object.keys(log.metadata || {}).sort()
+    );
+    return `${log["project-id"]}|${log.level}|${log.message}|${metadataKey}`;
   };
 
   const createGroupedEntry = (group: LogEntry[]): GroupedLogEntry => {
@@ -85,14 +94,6 @@ export default function LogsTable({
     const result: (LogEntry | GroupedLogEntry)[] = [];
     let currentGroup: LogEntry[] = [];
     let currentGroupKey: string | null = null;
-
-    const getGroupKey = (log: LogEntry): string => {
-      const metadataKey = JSON.stringify(
-        log.metadata || {},
-        Object.keys(log.metadata || {}).sort()
-      );
-      return `${log["project-id"]}|${log.level}|${log.message}|${metadataKey}`;
-    };
 
     const finalizeGroup = (group: LogEntry[]) => {
       if (group.length === 0) return;
@@ -127,13 +128,13 @@ export default function LogsTable({
     return "count" in log && log.count > 1;
   };
 
-  const toggleGroupExpanded = (groupId: number) => {
+  const toggleGroupExpanded = (groupKey: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(groupId)) {
-        next.delete(groupId);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
       } else {
-        next.add(groupId);
+        next.add(groupKey);
       }
       return next;
     });
@@ -218,13 +219,16 @@ export default function LogsTable({
                 const grouped = isGrouped(log);
                 // When grouped, the log already contains the last occurrence's data
                 const displayLog = log;
-                const isExpanded = grouped && expandedGroups.has(log.id);
+                const rowKey = grouped
+                  ? getGroupKey(log)
+                  : String(log.id);
+                const isExpanded = grouped && expandedGroups.has(rowKey);
                 const visibleOccurrences = grouped
                   ? log.occurrences.slice(0, MAX_VISIBLE_OCCURRENCES)
                   : [];
 
                 return (
-                  <Fragment key={log.id}>
+                  <Fragment key={rowKey}>
                     <tr
                       style={{
                         borderBottom: isExpanded
@@ -305,7 +309,7 @@ export default function LogsTable({
                             title={`Show ${Math.min(log.count, MAX_VISIBLE_OCCURRENCES)} of ${log.count} occurrences`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              toggleGroupExpanded(log.id);
+                              toggleGroupExpanded(rowKey);
                             }}
                           >
                             {log.count}
