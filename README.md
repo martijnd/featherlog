@@ -4,12 +4,12 @@ A simple logging SDK and admin dashboard for centralized error logging.
 
 ## Project Structure
 
-This is a monorepo containing:
+This is a pnpm monorepo containing:
 
-- **packages/sdk** - The logging SDK that can be installed in your projects
-- **packages/server** - Express backend server that receives and stores logs
-- **packages/admin** - React admin UI for viewing and filtering logs
-- **packages/demo** - Demo React app that demonstrates SDK usage
+- **packages/sdk** (`featherlog`) — Publishable logging SDK
+- **packages/server** — Express API that receives logs, serves the admin UI, and uses PostgreSQL
+- **packages/admin** — React admin UI for viewing, filtering, and managing logs/projects
+- **packages/demo** — Demo React app that exercises the SDK
 
 ## Quick Start
 
@@ -24,172 +24,186 @@ pnpm install
 2. Set up environment variables:
 
 ```bash
-# Copy root .env.example for docker-compose
+# Root .env (used by docker compose / deploy)
 cp .env.example .env
 
-# Copy server .env.example for local development
-cd packages/server
-cp .env.example .env
-# Edit .env with your configuration
+# Server
+cp packages/server/.env.example packages/server/.env
 
-# Copy admin .env.example for local development
-cd ../admin
-cp .env.example .env
-# Edit .env with your API URL
+# Admin (Vite); point at the API during local Vite dev
+cp packages/admin/.env.example packages/admin/.env
 ```
 
-3. Start PostgreSQL (using Docker):
+3. Start PostgreSQL:
 
 ```bash
-docker-compose up -d postgres
+docker compose up -d postgres
 ```
 
-4. Build the admin UI (required for server to serve it):
+4. Build the admin UI (required if you want the server to serve it at `:3000`):
 
 ```bash
-cd packages/admin
-pnpm build
+pnpm build:admin
 ```
 
-5. Start the server (serves both API and Admin UI):
+5. Start the server (API + admin UI when built):
 
 ```bash
 cd packages/server
 pnpm dev
 ```
 
-The server will be available at http://localhost:3000
+The server is available at http://localhost:3000
 
-- API endpoints: http://localhost:3000/api/\*
+- API: http://localhost:3000/api/*
 - Admin UI: http://localhost:3000
+- Health: http://localhost:3000/health
 
-6. Build the SDK (required for demo):
+Alternatively, from the repo root:
 
 ```bash
-cd packages/sdk
-pnpm build
+pnpm dev   # postgres + server + admin (Vite) + demo in parallel
 ```
 
-7. Start the demo app (optional):
+6. Build the SDK (required for the demo):
+
+```bash
+pnpm build:sdk
+```
+
+7. Create an admin user and a project (see [Initial Setup](#initial-setup)), then optionally start the demo:
 
 ```bash
 cd packages/demo
-cp .env.example .env
-# Edit .env with your secret and project-id
 pnpm dev
 ```
 
-The demo app will be available at http://localhost:5174. Click the buttons to generate different types of logs, then view them in the admin panel!
+The demo runs at http://localhost:5174 (default project-id `demo-app`, overridable with `VITE_FEATHERLOG_PROJECT_ID`). Make sure that project's allowed origins include `http://localhost:5174`.
 
 ### Production Deployment
 
-1. Create a `.env` file in the root directory:
+1. Create a root `.env` with at least:
 
 ```bash
-# Server environment variables
-JWT_SECRET=your-secret-key-change-in-production
-
-# Admin UI environment variables (build-time, optional)
-# Leave VITE_API_URL empty/unset to use relative URLs (recommended for production)
-# Set VITE_API_URL only if API is on a different domain than admin UI
-# VITE_API_URL=https://your-api-domain.com
+JWT_SECRET=<strong-secret>
+POSTGRES_USER=featherlog_user
+POSTGRES_PASSWORD=<strong-password>
+POSTGRES_DB=featherlog
+PORT=3000
 ```
 
-2. For production with nginx proxy (recommended):
+2. Admin UI API URL (build-time):
 
-   - Leave `VITE_API_URL` unset/empty - the admin will use relative URLs (`/api`)
-   - Nginx will proxy `/api` requests to the server
-   - No CORS issues since requests go through the same domain
+   - **Same domain / nginx proxy (recommended):** leave `VITE_API_URL` unset so the admin uses relative `/api`
+   - **Separate API domain:** set `VITE_API_URL` to that API origin before building
 
-3. For separate API domain:
-
-   - Set `VITE_API_URL` to your API domain
-
-4. Start all services:
+3. Deploy:
 
 ```bash
-docker-compose up -d
+./deploy.sh
+# or
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-**Note:** For production, make sure to:
+## Authentication
 
-- Set `VITE_API_URL` to your API domain (if different from admin domain)
-- Use strong `JWT_SECRET` values
-- Configure proper database credentials
+### Log ingest (SDK → server)
 
-This will start:
+Projects use **origin-based** authentication. Configure allowed origins per project (admin UI or CLI). Browser requests must send an `Origin`/`Referer` that matches; server-side Node requests with no origin are allowed if the `project-id` exists.
 
-- PostgreSQL database on port 5432
-- Server on port 3000 (serves both API and Admin UI)
-  - API endpoints: `http://localhost:3000/api/*`
-  - Admin UI: `http://localhost:3000`
+The SDK only needs a `project-id` (no shared secret).
+
+### Admin UI / API
+
+Admin routes use JWT (`Authorization: Bearer …`) after login. Users are created via CLI (registration endpoint is disabled).
 
 ## SDK Usage
+
+```bash
+npm install featherlog
+# or
+pnpm add featherlog
+```
 
 ```typescript
 import { Logger } from "featherlog";
 
 const logger = new Logger({
-  secret: "your-secret",
   "project-id": "your-project-id",
 });
 
 try {
   // your code
 } catch (error) {
-  logger.error(error.message);
+  logger.error(error.message, { stack: error.stack });
 }
+
+logger.warn("Something might be wrong", { userId: 123 });
+logger.info("User logged in", { userId: 123 });
 ```
+
+Endpoint resolution:
+
+1. `FEATHERLOG_ENDPOINT` if set
+2. Otherwise `http://localhost:3000/api/logs` in development
+3. Otherwise `https://featherlog.lekkerklooien.nl/api/logs` when `NODE_ENV=production`
+
+See [packages/sdk/README.md](packages/sdk/README.md) for full SDK docs.
 
 ## Initial Setup
 
 ### Creating an Admin User
-
-Admin users must be created via the command line script:
-
-**Using the Command Line Script (Recommended)**
 
 ```bash
 cd packages/server
 pnpm create-user admin your-password
 ```
 
-**In Production (Docker):**
+**In production (Docker):**
 
 ```bash
 docker compose -f docker-compose.prod.yml exec server node dist/scripts/create-user.js admin your-password
 ```
 
-**Alternative: Use SQL directly**
-
-```sql
--- Note: You'll need to hash the password with bcrypt
-INSERT INTO users (username, password_hash)
-VALUES ('admin', '$2b$10$...'); -- Use bcrypt to hash your password
-```
-
 ### Creating a Project
 
-After creating a user, create a project for your applications to use:
+Projects require a non-empty list of allowed origins:
 
 ```bash
 cd packages/server
-pnpm create-project my-project "My Project" your-secret-key
+pnpm create-project my-project "My Project" '["http://localhost:5174","https://yourdomain.com"]'
 ```
 
-Or use SQL:
+Or via the admin UI after logging in. Or SQL:
 
 ```sql
-INSERT INTO projects (id, name, secret)
-VALUES ('my-project', 'My Project', 'your-secret-key');
+INSERT INTO projects (id, name, origins)
+VALUES ('my-project', 'My Project', '["http://localhost:5174"]');
 ```
 
-**Important:** Use the same `secret` and `project-id` when initializing the Logger in your applications!
+Use the same `project-id` when initializing `Logger`, and keep the origins list in sync with where your app runs.
 
 ## API Endpoints
 
-- `POST /api/logs` - Send logs (requires X-Secret header)
-- `POST /api/auth/login` - Admin login
-- `POST /api/auth/register` - Register a new admin user
-- `GET /api/logs` - Get logs (JWT protected)
-- `GET /api/logs/projects` - Get all projects (JWT protected)
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/logs` | Origin check | Ingest a log |
+| `GET` | `/api/logs` | JWT | List / filter logs |
+| `GET` | `/api/logs/stream` | JWT | Live log stream |
+| `GET` | `/api/logs/projects` | JWT | List projects |
+| `POST` | `/api/logs/projects` | JWT | Create project |
+| `PUT` | `/api/logs/projects/:id` | JWT | Update project |
+| `DELETE` | `/api/logs/projects/:id` | JWT | Delete project |
+| `DELETE` | `/api/logs/projects/:id/logs` | JWT | Clear project logs |
+| `POST` | `/api/auth/login` | — | Admin login |
+| `GET` | `/health` | — | Health check |
+
+## Useful Commands
+
+```bash
+pnpm build                 # build all packages
+pnpm build:sdk
+pnpm build:admin
+pnpm build:server          # admin then server
+pnpm --filter featherlog test
+```
