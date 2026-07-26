@@ -8,10 +8,29 @@ export interface LogEntry {
   message: string;
   timestamp: string;
   metadata: Record<string, any>;
+  fingerprint?: string | null;
 }
 
 export interface LogsResponse {
   logs: LogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface Issue {
+  fingerprint: string;
+  "project-id": string;
+  level: "error" | "warn" | "info";
+  message: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+  latest_metadata: Record<string, any>;
+}
+
+export interface IssuesResponse {
+  issues: Issue[];
   total: number;
   limit: number;
   offset: number;
@@ -116,6 +135,51 @@ class ApiClient {
 
   async getProjects(): Promise<{ projects: Project[] }> {
     return this.request<{ projects: Project[] }>("/api/logs/projects");
+  }
+
+  async getIssues(
+    params: {
+      "project-id"?: string;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<IssuesResponse> {
+    const queryParams = new URLSearchParams();
+    if (params["project-id"])
+      queryParams.append("project-id", params["project-id"]);
+    if (params.limit) queryParams.append("limit", params.limit.toString());
+    if (params.offset) queryParams.append("offset", params.offset.toString());
+
+    const qs = queryParams.toString();
+    return this.request<IssuesResponse>(
+      `/api/logs/issues${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getIssueOccurrences(
+    fingerprint: string,
+    params: {
+      "project-id"?: string;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<{
+    fingerprint: string;
+    logs: LogEntry[];
+    total: number;
+    limit: number;
+    offset: number;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params["project-id"])
+      queryParams.append("project-id", params["project-id"]);
+    if (params.limit) queryParams.append("limit", params.limit.toString());
+    if (params.offset) queryParams.append("offset", params.offset.toString());
+
+    const qs = queryParams.toString();
+    return this.request(
+      `/api/logs/issues/${encodeURIComponent(fingerprint)}${qs ? `?${qs}` : ""}`
+    );
   }
 
   async createProject(

@@ -3,6 +3,7 @@ import { pool } from "../db/connection.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { LogRequest, LogsQueryParams } from "../types.js";
 import { logBroadcaster } from "../services/logBroadcaster.js";
+import { computeFingerprint } from "../services/fingerprint.js";
 
 const router: Router = Router();
 
@@ -83,16 +84,20 @@ router.post("/", async (req: Request, res: Response) => {
       ...metadata
     } = logData;
 
+    const fingerprint = computeFingerprint(message, metadata);
+
     // Insert log
     const insertResult = await pool.query(
-      `INSERT INTO logs (project_id, level, message, timestamp, metadata)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, project_id, level, message, timestamp, metadata`,
+      `INSERT INTO logs (project_id, level, message, timestamp, metadata, fingerprint)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, project_id, level, message, timestamp, metadata, fingerprint`,
       [
         projectId,
         level,
         message,
         timestamp ? new Date(timestamp) : new Date(),
         JSON.stringify(metadata),
+        fingerprint,
       ]
     );
 
@@ -106,9 +111,10 @@ router.post("/", async (req: Request, res: Response) => {
       message: newLog.message,
       timestamp: newLog.timestamp,
       metadata: newLog.metadata,
+      fingerprint: newLog.fingerprint,
     });
 
-    res.status(201).json({ success: true });
+    res.status(201).json({ success: true, fingerprint });
   } catch (error) {
     console.error("Error creating log:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -198,6 +204,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
         message: row.message,
         timestamp: row.timestamp,
         metadata: row.metadata,
+        fingerprint: row.fingerprint,
       })),
       total,
       limit,
@@ -208,6 +215,163 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// GET /api/logs/issues - Aggregated issues by fingerprint (JWT protected)
+router.get(
+  "/issues",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const query = req.query as {
+        "project-id"?: string;
+        limit?: string;
+        offset?: string;
+      };
+
+      let sql = `
+        SELECT
+          fingerprint,
+          project_id,
+          (array_agg(level ORDER BY timestamp DESC))[1] AS level,
+          (array_agg(message ORDER BY timestamp DESC))[1] AS message,
+          COUNT(*)::int AS count,
+          MIN(timestamp) AS first_seen,
+          MAX(timestamp) AS last_seen,
+          (array_agg(metadata ORDER BY timestamp DESC))[1] AS latest_metadata
+        FROM logs
+        WHERE fingerprint IS NOT NULL
+      `;
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      if (query["project-id"]) {
+        sql += ` AND project_id = $${paramIndex}`;
+        params.push(query["project-id"]);
+        paramIndex++;
+      }
+
+      sql += `
+        GROUP BY fingerprint, project_id
+        ORDER BY last_seen DESC
+      `;
+
+      const limit = query.limit ? parseInt(query.limit.toString(), 10) : 50;
+      const offset = query.offset ? parseInt(query.offset.toString(), 10) : 0;
+
+      sql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      params.push(limit, offset);
+
+      const result = await pool.query(sql, params);
+
+      let countSql = `
+        SELECT COUNT(*) FROM (
+          SELECT 1 FROM logs
+          WHERE fingerprint IS NOT NULL
+      `;
+      const countParams: any[] = [];
+      let countParamIndex = 1;
+
+      if (query["project-id"]) {
+        countSql += ` AND project_id = $${countParamIndex}`;
+        countParams.push(query["project-id"]);
+        countParamIndex++;
+      }
+
+      countSql += ` GROUP BY fingerprint, project_id) AS issues`;
+
+      const countResult = await pool.query(countSql, countParams);
+      const total = parseInt(countResult.rows[0].count, 10);
+
+      res.json({
+        issues: result.rows.map((row) => ({
+          fingerprint: row.fingerprint,
+          "project-id": row.project_id,
+          level: row.level,
+          message: row.message,
+          count: row.count,
+          first_seen: row.first_seen,
+          last_seen: row.last_seen,
+          latest_metadata: row.latest_metadata || {},
+        })),
+        total,
+        limit,
+        offset,
+      });
+    } catch (error) {
+      console.error("Error fetching issues:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// GET /api/logs/issues/:fingerprint - Occurrences for an issue (JWT protected)
+router.get(
+  "/issues/:fingerprint",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { fingerprint } = req.params;
+      const projectId = req.query["project-id"] as string | undefined;
+      const limit = req.query.limit
+        ? parseInt(req.query.limit.toString(), 10)
+        : 50;
+      const offset = req.query.offset
+        ? parseInt(req.query.offset.toString(), 10)
+        : 0;
+
+      let sql = `
+        SELECT id, project_id, level, message, timestamp, metadata, fingerprint
+        FROM logs
+        WHERE fingerprint = $1
+      `;
+      const params: any[] = [fingerprint];
+      let paramIndex = 2;
+
+      if (projectId) {
+        sql += ` AND project_id = $${paramIndex}`;
+        params.push(projectId);
+        paramIndex++;
+      }
+
+      sql += ` ORDER BY timestamp DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      params.push(limit, offset);
+
+      const result = await pool.query(sql, params);
+
+      let countSql = `SELECT COUNT(*) FROM logs WHERE fingerprint = $1`;
+      const countParams: any[] = [fingerprint];
+      if (projectId) {
+        countSql += ` AND project_id = $2`;
+        countParams.push(projectId);
+      }
+      const countResult = await pool.query(countSql, countParams);
+      const total = parseInt(countResult.rows[0].count, 10);
+
+      if (total === 0) {
+        return res.status(404).json({ error: "Issue not found" });
+      }
+
+      res.json({
+        fingerprint,
+        logs: result.rows.map((row) => ({
+          id: row.id,
+          "project-id": row.project_id,
+          level: row.level,
+          message: row.message,
+          timestamp: row.timestamp,
+          metadata: row.metadata,
+          fingerprint: row.fingerprint,
+        })),
+        total,
+        limit,
+        offset,
+      });
+    } catch (error) {
+      console.error("Error fetching issue occurrences:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
 
 // GET /api/projects - Get all projects (JWT protected)
 router.get(

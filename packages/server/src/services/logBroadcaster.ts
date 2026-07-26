@@ -8,6 +8,7 @@ export interface SSELogEntry {
   message: string;
   timestamp: string | Date;
   metadata: Record<string, any>;
+  fingerprint?: string | null;
 }
 
 // Singleton event emitter for broadcasting new logs

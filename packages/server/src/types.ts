@@ -5,6 +5,18 @@ export interface LogEntry {
   message: string;
   timestamp: Date;
   metadata: Record<string, any>;
+  fingerprint?: string | null;
+}
+
+export interface Issue {
+  fingerprint: string;
+  project_id: string;
+  level: 'error' | 'warn' | 'info';
+  message: string;
+  count: number;
+  first_seen: Date;
+  last_seen: Date;
+  latest_metadata: Record<string, any>;
 }
 
 export interface LogRequest {

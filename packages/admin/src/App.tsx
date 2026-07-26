@@ -6,6 +6,7 @@ import LogsTable from "./components/LogsTable";
 import LogDetail from "./components/LogDetail";
 import CreateProject from "./components/CreateProject";
 import ProjectsManager from "./components/ProjectsManager";
+import IssuesList from "./components/IssuesList";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -14,12 +15,15 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [isRealtime, setIsRealtime] = useState(true);
-  const [activeView, setActiveView] = useState<"logs" | "projects">("logs");
+  const [activeView, setActiveView] = useState<"logs" | "issues" | "projects">(
+    "logs"
+  );
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
   } | null>(null);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  const [issuesRefreshKey, setIssuesRefreshKey] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Filter state
@@ -89,6 +93,11 @@ function App() {
             });
             // Update total count
             setTotal((prevTotal) => prevTotal + 1);
+          }
+
+          // Refresh issues when a fingerprinted capture arrives
+          if (newLog.fingerprint) {
+            setIssuesRefreshKey((k) => k + 1);
           }
         },
         (_error) => {
@@ -301,7 +310,7 @@ function App() {
       >
         <h1>Featherlog Admin</h1>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {activeView === "logs" && (
+          {(activeView === "logs" || activeView === "issues") && (
             <button
               onClick={toggleRealtime}
               style={{
@@ -367,6 +376,24 @@ function App() {
           Logs
         </button>
         <button
+          onClick={() => setActiveView("issues")}
+          style={{
+            padding: "0.75rem 1.5rem",
+            backgroundColor: "transparent",
+            color: activeView === "issues" ? "#007bff" : "#6c757d",
+            border: "none",
+            borderBottom:
+              activeView === "issues"
+                ? "2px solid #007bff"
+                : "2px solid transparent",
+            cursor: "pointer",
+            fontWeight: activeView === "issues" ? "600" : "400",
+            marginBottom: "-2px",
+          }}
+        >
+          Issues
+        </button>
+        <button
           onClick={() => setActiveView("projects")}
           style={{
             padding: "0.75rem 1.5rem",
@@ -423,6 +450,16 @@ function App() {
             onLogClick={setSelectedLog}
           />
         </>
+      )}
+
+      {activeView === "issues" && (
+        <IssuesList
+          projects={projects}
+          selectedProject={selectedProject}
+          onProjectChange={setSelectedProject}
+          onLogClick={setSelectedLog}
+          refreshKey={issuesRefreshKey}
+        />
       )}
 
       {activeView === "projects" && (

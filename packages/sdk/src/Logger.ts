@@ -6,6 +6,35 @@ export interface LogMetadata {
   [key: string]: any;
 }
 
+export interface CapturedError {
+  name: string;
+  stack?: string;
+}
+
+function extractError(error: unknown): { message: string; error: CapturedError } {
+  if (error instanceof Error) {
+    return {
+      message: error.message || error.name || "Error",
+      error: {
+        name: error.name || "Error",
+        stack: error.stack,
+      },
+    };
+  }
+
+  if (typeof error === "string") {
+    return {
+      message: error,
+      error: { name: "Error" },
+    };
+  }
+
+  return {
+    message: String(error),
+    error: { name: "Error" },
+  };
+}
+
 export class Logger {
   private projectId: string;
   private endpoint: string;
@@ -47,7 +76,11 @@ export class Logger {
     }
   }
 
-  async error(message: string, metadata: LogMetadata = {}): Promise<void> {
+  private async send(
+    level: "error" | "warn" | "info",
+    message: string,
+    metadata: LogMetadata = {}
+  ): Promise<void> {
     try {
       const response = await fetch(this.endpoint, {
         method: "POST",
@@ -56,8 +89,8 @@ export class Logger {
         },
         body: JSON.stringify({
           "project-id": this.projectId,
-          level: "error",
-          message: message,
+          level,
+          message,
           timestamp: new Date().toISOString(),
           ...metadata,
         }),
@@ -77,59 +110,26 @@ export class Logger {
     }
   }
 
-  async warn(message: string, metadata: LogMetadata = {}): Promise<void> {
-    try {
-      const response = await fetch(this.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          "project-id": this.projectId,
-          level: "warn",
-          message: message,
-          timestamp: new Date().toISOString(),
-          ...metadata,
-        }),
-      });
+  async error(message: string, metadata: LogMetadata = {}): Promise<void> {
+    await this.send("error", message, metadata);
+  }
 
-      if (!response.ok) {
-        console.warn(
-          `Featherlog: Failed to send log. Status: ${response.status}`
-        );
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      console.warn(`Featherlog: Error sending log: ${errorMessage}`);
-    }
+  async warn(message: string, metadata: LogMetadata = {}): Promise<void> {
+    await this.send("warn", message, metadata);
   }
 
   async info(message: string, metadata: LogMetadata = {}): Promise<void> {
-    try {
-      const response = await fetch(this.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          "project-id": this.projectId,
-          level: "info",
-          message: message,
-          timestamp: new Date().toISOString(),
-          ...metadata,
-        }),
-      });
+    await this.send("info", message, metadata);
+  }
 
-      if (!response.ok) {
-        console.warn(
-          `Featherlog: Failed to send log. Status: ${response.status}`
-        );
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      console.warn(`Featherlog: Error sending log: ${errorMessage}`);
-    }
+  /**
+   * Capture an Error (or unknown thrown value) with stack/type for issue fingerprinting.
+   */
+  async capture(error: unknown, metadata: LogMetadata = {}): Promise<void> {
+    const extracted = extractError(error);
+    await this.send("error", extracted.message, {
+      ...metadata,
+      error: extracted.error,
+    });
   }
 }

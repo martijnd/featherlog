@@ -298,6 +298,88 @@ describe("Logger", () => {
     });
   });
 
+  describe("capture", () => {
+    it("should send error name and stack for Error instances", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+      });
+
+      const logger = new Logger({
+        "project-id": "test-project",
+      });
+
+      const error = new TypeError("Cannot read property");
+      await logger.capture(error);
+
+      const callArgs = mockFetch.mock.calls[0];
+      const body = JSON.parse(callArgs[1].body);
+      expect(body).toMatchObject({
+        "project-id": "test-project",
+        level: "error",
+        message: "Cannot read property",
+        error: {
+          name: "TypeError",
+        },
+      });
+      expect(body.error.stack).toContain("TypeError");
+    });
+
+    it("should capture string errors", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+      });
+
+      const logger = new Logger({
+        "project-id": "test-project",
+      });
+
+      await logger.capture("plain string failure");
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body).toMatchObject({
+        level: "error",
+        message: "plain string failure",
+        error: { name: "Error" },
+      });
+    });
+
+    it("should merge extra metadata with captured error", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+      });
+
+      const logger = new Logger({
+        "project-id": "test-project",
+      });
+
+      await logger.capture(new Error("boom"), { userId: 42, demo: true });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.userId).toBe(42);
+      expect(body.demo).toBe(true);
+      expect(body.error.name).toBe("Error");
+      expect(body.error.stack).toBeDefined();
+    });
+
+    it("should silently fail on network error", async () => {
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+
+      const logger = new Logger({
+        "project-id": "test-project",
+      });
+
+      await expect(logger.capture(new Error("boom"))).resolves.not.toThrow();
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+  });
+
   describe("timestamp generation", () => {
     it("should include ISO timestamp in log", async () => {
       mockFetch.mockResolvedValueOnce({

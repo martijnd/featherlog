@@ -21,21 +21,21 @@ const logger = new Logger({
   "project-id": "your-project-id",
 });
 
-// Log errors
+// Capture errors (recommended) — includes stack/type for issue fingerprinting
 try {
   // your code
 } catch (error) {
-  logger.error(error.message, {
-    stack: error.stack,
-    // any additional metadata
-  });
+  await logger.capture(error, { userId: 123 });
 }
 
+// Log errors as plain messages
+await logger.error("Payment failed", { orderId: "abc" });
+
 // Log warnings
-logger.warn("Something might be wrong", { userId: 123 });
+await logger.warn("Something might be wrong", { userId: 123 });
 
 // Log info
-logger.info("User logged in", { userId: 123 });
+await logger.info("User logged in", { userId: 123 });
 ```
 
 ## API
@@ -58,6 +58,10 @@ The endpoint is automatically determined based on `NODE_ENV`:
 - `production`: Uses `FEATHERLOG_ENDPOINT` env var or defaults to `https://featherlog.lekkerklooien.nl/api/logs`
 
 You can override the endpoint by setting the `FEATHERLOG_ENDPOINT` environment variable.
+
+### `logger.capture(error: unknown, metadata?: LogMetadata)`
+
+Captures an `Error` (or any thrown value) as an error log with structured `error.name` and `error.stack`. The server uses this to fingerprint and group occurrences into Issues in the admin UI.
 
 ### `logger.error(message: string, metadata?: LogMetadata)`
 

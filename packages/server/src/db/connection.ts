@@ -54,9 +54,15 @@ export async function initDatabase() {
       message TEXT NOT NULL,
       timestamp TIMESTAMP NOT NULL,
       metadata JSONB DEFAULT '{}',
+      fingerprint VARCHAR(64),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     )
+  `);
+
+  // Migrate existing databases that predate fingerprints
+  await pool.query(`
+    ALTER TABLE logs ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(64)
   `);
 
   // Create index on project_id and timestamp for faster queries
@@ -70,6 +76,12 @@ export async function initDatabase() {
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_logs_fingerprint
+    ON logs(project_id, fingerprint)
+    WHERE fingerprint IS NOT NULL
   `);
 
   console.log("Database initialized");
