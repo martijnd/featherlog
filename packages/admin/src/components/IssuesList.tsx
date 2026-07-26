@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { apiClient, Issue, LogEntry, Project } from "../api/client";
 import ShareLinkPanel from "./ShareLinkPanel";
+import CopyPermalinkButton from "./CopyPermalinkButton";
+import { issuePermalink } from "../permalink";
 
 interface IssuesListProps {
   projects: Project[];
@@ -12,6 +14,9 @@ interface IssuesListProps {
   /** Expand this fingerprint when present (e.g. dashboard click-through) */
   expandFingerprint?: string | null;
   onExpandFingerprintHandled?: () => void;
+  onExpandedIssueChange?: (
+    issue: { fingerprint: string; projectId: string } | null
+  ) => void;
 }
 
 export default function IssuesList({
@@ -22,6 +27,7 @@ export default function IssuesList({
   refreshKey = 0,
   expandFingerprint = null,
   onExpandFingerprintHandled,
+  onExpandedIssueChange,
 }: IssuesListProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,6 +48,7 @@ export default function IssuesList({
     setOffset(0);
     if (!expandFingerprint) {
       setExpandedFingerprint(null);
+      onExpandedIssueChange?.(null);
     }
   }, [selectedProject]);
 
@@ -53,6 +60,10 @@ export default function IssuesList({
       return;
     }
     setExpandedFingerprint(expandFingerprint);
+    onExpandedIssueChange?.({
+      fingerprint: issue.fingerprint,
+      projectId: issue["project-id"],
+    });
     onExpandFingerprintHandled?.();
   }, [expandFingerprint, issues, loading]);
 
@@ -107,10 +118,15 @@ export default function IssuesList({
     if (expandedFingerprint === issue.fingerprint) {
       setExpandedFingerprint(null);
       setOccurrences([]);
+      onExpandedIssueChange?.(null);
       return;
     }
 
     setExpandedFingerprint(issue.fingerprint);
+    onExpandedIssueChange?.({
+      fingerprint: issue.fingerprint,
+      projectId: issue["project-id"],
+    });
     setOccurrencesLoading(true);
     try {
       const response = await apiClient.getIssueOccurrences(issue.fingerprint, {
@@ -358,13 +374,27 @@ export default function IssuesList({
                               }}
                             >
                               <span>Recent occurrences</span>
-                              <ShareLinkPanel
-                                request={{
-                                  type: "issue",
-                                  fingerprint: issue.fingerprint,
-                                  "project-id": issue["project-id"],
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "0.5rem",
+                                  alignItems: "center",
                                 }}
-                              />
+                              >
+                                <CopyPermalinkButton
+                                  url={issuePermalink(
+                                    issue.fingerprint,
+                                    issue["project-id"]
+                                  )}
+                                />
+                                <ShareLinkPanel
+                                  request={{
+                                    type: "issue",
+                                    fingerprint: issue.fingerprint,
+                                    "project-id": issue["project-id"],
+                                  }}
+                                />
+                              </div>
                             </div>
                             {occurrencesLoading ? (
                               <div style={{ padding: "1rem" }}>Loading...</div>

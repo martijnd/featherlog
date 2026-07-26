@@ -187,6 +187,11 @@ class ApiClient {
     return this.request<LogsResponse>(`/api/logs?${queryParams.toString()}`);
   }
 
+  async getLog(id: number): Promise<LogEntry> {
+    const response = await this.request<{ log: LogEntry }>(`/api/logs/${id}`);
+    return response.log;
+  }
+
   async getProjects(): Promise<{ projects: Project[] }> {
     return this.request<{ projects: Project[] }>("/api/logs/projects");
   }

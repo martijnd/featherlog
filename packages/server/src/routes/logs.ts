@@ -795,4 +795,45 @@ router.delete(
   }
 );
 
+// GET /api/logs/:id - Single log by id (JWT protected)
+// Registered after static paths so /issues, /stats, /stream, /projects are not captured.
+router.get(
+  "/:id",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(404).json({ error: "Log not found" });
+      }
+
+      const result = await pool.query(
+        `SELECT id, project_id, level, message, timestamp, metadata, fingerprint
+         FROM logs WHERE id = $1`,
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Log not found" });
+      }
+
+      const row = result.rows[0];
+      res.json({
+        log: {
+          id: row.id,
+          "project-id": row.project_id,
+          level: row.level,
+          message: row.message,
+          timestamp: row.timestamp,
+          metadata: row.metadata || {},
+          fingerprint: row.fingerprint,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching log:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 export default router;

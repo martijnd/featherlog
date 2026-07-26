@@ -67,12 +67,14 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 
 - `POST /api/logs` — ingest (public + origin check)
 - `GET /api/logs` — list/filter (JWT); filters include `project-id`, `level`, dates, `request_id`, and repeated `where=path=value` for JSONB metadata (wide-event dimensions). SSE via `logBroadcaster`
+- `GET /api/logs/:id` — single log by id (JWT)
 - `GET /api/logs/projects` — projects (JWT); project CRUD also under logs routes
 - `POST /api/auth/login`, `POST /api/auth/register`
 - `POST /api/share` — create share link for a log or issue (JWT); default expiry 7 days
 - `GET /api/share/:token` — public shared log/issue payload (no auth)
 - `DELETE /api/share/:token` — revoke share link (JWT)
 - Public UI: `/share/:token` (admin SPA, no login)
+- Admin deep links (JWT/session): `/logs/:id`, `/issues/:fingerprint?project=<project-id>` (also `/`, `/logs`, `/issues`, `/projects` for tabs)
 
 DB tables (created in `packages/server/src/db/connection.ts`): `projects` (`origins` JSONB, non-empty), `users`, `logs`, `share_links`.
 

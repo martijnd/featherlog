@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiClient, LogEntry, Project } from "./api/client";
 import Login from "./components/Login";
 import FilterBar from "./components/FilterBar";
@@ -9,28 +9,31 @@ import ProjectsManager from "./components/ProjectsManager";
 import IssuesList from "./components/IssuesList";
 import Dashboard, { DashboardLogsNav } from "./components/Dashboard";
 import ShareView from "./components/ShareView";
-
-function getShareTokenFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/share\/([^/]+)\/?$/);
-  if (!match) return null;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return match[1];
-  }
-}
+import {
+  AdminRoute,
+  AdminView,
+  navigatePath,
+  parseAdminRoute,
+  pathForIssue,
+  pathForLog,
+  pathForView,
+} from "./permalink";
 
 function App() {
-  const shareToken = getShareTokenFromPath(window.location.pathname);
+  const initialRoute = parseAdminRoute(
+    window.location.pathname,
+    window.location.search
+  );
+  const shareToken =
+    initialRoute.kind === "share" ? initialRoute.token : null;
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [isRealtime, setIsRealtime] = useState(true);
-  const [activeView, setActiveView] = useState<
-    "dashboard" | "logs" | "issues" | "projects"
-  >("dashboard");
+  const [activeView, setActiveView] = useState<AdminView>("dashboard");
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
@@ -40,11 +43,17 @@ function App() {
   const [expandIssueFingerprint, setExpandIssueFingerprint] = useState<
     string | null
   >(null);
+  const [expandedIssue, setExpandedIssue] = useState<{
+    fingerprint: string;
+    projectId: string;
+  } | null>(null);
   const [dashboardLiveEvent, setDashboardLiveEvent] = useState<{
     seq: number;
     log: LogEntry;
   } | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const skipUrlSyncRef = useRef(false);
+  const routeResolvedRef = useRef(false);
 
   // Filter state
   const [selectedProject, setSelectedProject] = useState("");
@@ -56,12 +65,123 @@ function App() {
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
+  const showToast = useCallback(
+    (message: string, type: "success" | "error" = "success") => {
+      setToast({ message, type });
+      setTimeout(() => {
+        setToast(null);
+      }, 3000);
+    },
+    []
+  );
+
+  const applyRoute = useCallback(
+    async (route: AdminRoute, replaceUrl = false) => {
+      skipUrlSyncRef.current = true;
+      try {
+        switch (route.kind) {
+          case "dashboard":
+            setActiveView("dashboard");
+            setSelectedLog(null);
+            setExpandIssueFingerprint(null);
+            setExpandedIssue(null);
+            if (replaceUrl) navigatePath("/", true);
+            break;
+          case "logs":
+            setActiveView("logs");
+            setSelectedLog(null);
+            if (replaceUrl) navigatePath("/logs", true);
+            break;
+          case "log": {
+            setActiveView("logs");
+            try {
+              const log = await apiClient.getLog(route.id);
+              setSelectedLog(log);
+              if (replaceUrl) navigatePath(pathForLog(route.id), true);
+            } catch {
+              showToast("Log not found", "error");
+              setSelectedLog(null);
+              setActiveView("logs");
+              navigatePath("/logs", true);
+            }
+            break;
+          }
+          case "issues":
+            setActiveView("issues");
+            setSelectedLog(null);
+            setExpandIssueFingerprint(null);
+            setExpandedIssue(null);
+            if (replaceUrl) navigatePath("/issues", true);
+            break;
+          case "issue":
+            setActiveView("issues");
+            setSelectedLog(null);
+            setSelectedProject(route.projectId);
+            setExpandIssueFingerprint(route.fingerprint);
+            setExpandedIssue({
+              fingerprint: route.fingerprint,
+              projectId: route.projectId,
+            });
+            if (replaceUrl) {
+              navigatePath(
+                pathForIssue(route.fingerprint, route.projectId),
+                true
+              );
+            }
+            break;
+          case "projects":
+            setActiveView("projects");
+            setSelectedLog(null);
+            if (replaceUrl) navigatePath("/projects", true);
+            break;
+          default:
+            setActiveView("dashboard");
+            if (replaceUrl) navigatePath("/", true);
+            break;
+        }
+      } finally {
+        // Allow URL sync on next tick after state settles
+        setTimeout(() => {
+          skipUrlSyncRef.current = false;
+        }, 0);
+      }
+    },
+    [showToast]
+  );
+
   useEffect(() => {
-    // Check if user is already authenticated
     if (apiClient.getToken()) {
       setIsAuthenticated(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || shareToken) return;
+    if (routeResolvedRef.current) return;
+    routeResolvedRef.current = true;
+    const route = parseAdminRoute(
+      window.location.pathname,
+      window.location.search
+    );
+    if (route.kind === "share") return;
+    void applyRoute(route, true);
+  }, [isAuthenticated, shareToken, applyRoute]);
+
+  useEffect(() => {
+    if (!isAuthenticated || shareToken) return;
+
+    const onPopState = () => {
+      const route = parseAdminRoute(
+        window.location.pathname,
+        window.location.search
+      );
+      if (route.kind === "share") return;
+      void applyRoute(route, false);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [isAuthenticated, shareToken, applyRoute]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -71,7 +191,6 @@ function App() {
     }
 
     return () => {
-      // Cleanup: close SSE connection on unmount
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -81,13 +200,9 @@ function App() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      // Reload logs when filters change (even in realtime mode, we need to reload initial set)
-      // But skip if offset changes in realtime mode (pagination handled separately)
       if (isRealtime && offset === 0) {
-        // In realtime mode, reload initial logs when filters change
         loadLogs();
       } else if (!isRealtime) {
-        // In manual mode, reload on any filter/offset change
         loadLogs();
       }
     }
@@ -105,7 +220,6 @@ function App() {
   const startRealtimeUpdates = () => {
     if (!isRealtime) return;
 
-    // Close existing connection if any
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -114,38 +228,29 @@ function App() {
     try {
       const eventSource = apiClient.createLogStream(
         (newLog: LogEntry) => {
-          // Check if the new log matches current filters
           if (matchesFilters(newLog)) {
             setLogs((prevLogs) => {
-              // Add new log at the beginning (most recent first)
               const updatedLogs = [newLog, ...prevLogs];
-              // Keep only the first `limit` logs to match pagination
               return updatedLogs.slice(0, limit);
             });
-            // Update total count
             setTotal((prevTotal) => prevTotal + 1);
           }
 
-          // Refresh issues when a fingerprinted capture arrives
           if (newLog.fingerprint) {
             setIssuesRefreshKey((k) => k + 1);
           }
 
-          // Push live log to dashboard for incremental updates
           setDashboardLiveEvent((prev) => ({
             seq: (prev?.seq ?? 0) + 1,
             log: newLog,
           }));
         },
         (_error) => {
-          // Only reconnect if we're still in realtime mode and connection was actually established
-          // This prevents reconnecting during normal page load interruptions
           if (
             isRealtime &&
             eventSourceRef.current?.readyState === EventSource.CLOSED
           ) {
             console.warn("SSE connection lost, attempting to reconnect...");
-            // Attempt to reconnect after a delay
             setTimeout(() => {
               if (isRealtime) {
                 startRealtimeUpdates();
@@ -252,13 +357,13 @@ function App() {
   };
 
   const handleLogout = () => {
-    // Close SSE connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
     apiClient.clearToken();
     setIsAuthenticated(false);
+    routeResolvedRef.current = false;
     setLogs([]);
     setProjects([]);
     setSelectedProject("");
@@ -268,6 +373,8 @@ function App() {
     setRequestId("");
     setWhereFilters([]);
     setOffset(0);
+    setSelectedLog(null);
+    setExpandedIssue(null);
   };
 
   const toggleRealtime = () => {
@@ -275,10 +382,8 @@ function App() {
     setIsRealtime(newRealtimeState);
 
     if (newRealtimeState) {
-      // Start realtime updates
       startRealtimeUpdates();
     } else {
-      // Stop realtime updates and reload logs
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -297,6 +402,49 @@ function App() {
     setOffset(0);
   };
 
+  const switchView = (view: AdminView) => {
+    setActiveView(view);
+    setSelectedLog(null);
+    if (view !== "issues") {
+      setExpandIssueFingerprint(null);
+      setExpandedIssue(null);
+    }
+    if (!skipUrlSyncRef.current) {
+      navigatePath(pathForView(view));
+    }
+  };
+
+  const openLog = (log: LogEntry) => {
+    setSelectedLog(log);
+    if (!skipUrlSyncRef.current) {
+      navigatePath(pathForLog(log.id));
+    }
+  };
+
+  const closeLog = () => {
+    setSelectedLog(null);
+    if (skipUrlSyncRef.current) return;
+    if (activeView === "issues" && expandedIssue) {
+      navigatePath(
+        pathForIssue(expandedIssue.fingerprint, expandedIssue.projectId)
+      );
+    } else {
+      navigatePath(pathForView(activeView));
+    }
+  };
+
+  const handleExpandedIssueChange = (
+    issue: { fingerprint: string; projectId: string } | null
+  ) => {
+    setExpandedIssue(issue);
+    if (skipUrlSyncRef.current) return;
+    if (issue) {
+      navigatePath(pathForIssue(issue.fingerprint, issue.projectId));
+    } else if (activeView === "issues" && !selectedLog) {
+      navigatePath("/issues");
+    }
+  };
+
   const navigateToLogsFromDashboard = (nav: DashboardLogsNav) => {
     setSelectedLevel(nav.level ?? "");
     setStartDate(nav.startDate);
@@ -304,7 +452,7 @@ function App() {
     setRequestId("");
     setWhereFilters([]);
     setOffset(0);
-    setActiveView("logs");
+    switchView("logs");
   };
 
   const navigateToIssueFromDashboard = (
@@ -313,17 +461,10 @@ function App() {
   ) => {
     setSelectedProject(projectId);
     setExpandIssueFingerprint(fingerprint);
+    setExpandedIssue({ fingerprint, projectId });
     setActiveView("issues");
-  };
-
-  const showToast = (
-    message: string,
-    type: "success" | "error" = "success"
-  ) => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast(null);
-    }, 3000);
+    setSelectedLog(null);
+    navigatePath(pathForIssue(fingerprint, projectId));
   };
 
   const handleProjectCreated = () => {
@@ -331,12 +472,17 @@ function App() {
     showToast("Project created successfully!", "success");
   };
 
+  const handleLogin = () => {
+    routeResolvedRef.current = false;
+    setIsAuthenticated(true);
+  };
+
   if (shareToken) {
     return <ShareView token={shareToken} />;
   }
 
   if (!isAuthenticated) {
-    return <Login onLogin={() => setIsAuthenticated(true)} />;
+    return <Login onLogin={handleLogin} />;
   }
 
   return (
@@ -348,7 +494,6 @@ function App() {
         margin: "0 auto",
       }}
     >
-      {/* Toast Notification */}
       {toast && (
         <div
           style={{
@@ -459,7 +604,7 @@ function App() {
         }}
       >
         <button
-          onClick={() => setActiveView("dashboard")}
+          onClick={() => switchView("dashboard")}
           style={{
             padding: "0.75rem 1.5rem",
             backgroundColor: "transparent",
@@ -477,7 +622,7 @@ function App() {
           Dashboard
         </button>
         <button
-          onClick={() => setActiveView("logs")}
+          onClick={() => switchView("logs")}
           style={{
             padding: "0.75rem 1.5rem",
             backgroundColor: "transparent",
@@ -495,7 +640,7 @@ function App() {
           Logs
         </button>
         <button
-          onClick={() => setActiveView("issues")}
+          onClick={() => switchView("issues")}
           style={{
             padding: "0.75rem 1.5rem",
             backgroundColor: "transparent",
@@ -513,7 +658,7 @@ function App() {
           Issues
         </button>
         <button
-          onClick={() => setActiveView("projects")}
+          onClick={() => switchView("projects")}
           style={{
             padding: "0.75rem 1.5rem",
             backgroundColor: "transparent",
@@ -537,7 +682,7 @@ function App() {
           projects={projects}
           selectedProject={selectedProject}
           onProjectChange={setSelectedProject}
-          onLogClick={setSelectedLog}
+          onLogClick={openLog}
           liveEvent={isRealtime ? dashboardLiveEvent : null}
           onNavigateToLogs={navigateToLogsFromDashboard}
           onNavigateToIssue={navigateToIssueFromDashboard}
@@ -588,7 +733,7 @@ function App() {
             limit={limit}
             offset={offset}
             onPageChange={setOffset}
-            onLogClick={setSelectedLog}
+            onLogClick={openLog}
           />
         </>
       )}
@@ -598,10 +743,11 @@ function App() {
           projects={projects}
           selectedProject={selectedProject}
           onProjectChange={setSelectedProject}
-          onLogClick={setSelectedLog}
+          onLogClick={openLog}
           refreshKey={issuesRefreshKey}
           expandFingerprint={expandIssueFingerprint}
           onExpandFingerprintHandled={() => setExpandIssueFingerprint(null)}
+          onExpandedIssueChange={handleExpandedIssueChange}
         />
       )}
 
@@ -609,9 +755,8 @@ function App() {
         <ProjectsManager projects={projects} onProjectUpdated={loadProjects} />
       )}
 
-      {/* Log Detail Modal */}
       {selectedLog && (
-        <LogDetail log={selectedLog} onClose={() => setSelectedLog(null)} />
+        <LogDetail log={selectedLog} onClose={closeLog} />
       )}
     </div>
   );

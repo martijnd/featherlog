@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { LogEntry } from "../api/client";
 import ShareLinkPanel from "./ShareLinkPanel";
+import CopyPermalinkButton from "./CopyPermalinkButton";
+import { logPermalink } from "../permalink";
 
 interface LogDetailProps {
   log: LogEntry;
@@ -309,7 +311,10 @@ export default function LogDetail({
             }}
           >
             {showShare && (
-              <ShareLinkPanel request={{ type: "log", logId: log.id }} />
+              <>
+                <CopyPermalinkButton url={logPermalink(log.id)} />
+                <ShareLinkPanel request={{ type: "log", logId: log.id }} />
+              </>
             )}
             <button
               onClick={onClose}
