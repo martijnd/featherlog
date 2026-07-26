@@ -5,6 +5,15 @@ All notable changes to the Featherlog SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-07-26
+
+### Added
+
+- **Wide events** — `logger.createEvent()` returns a mutable event you enrich during a request and `emit()` once (canonical log line).
+- **Persistent context** — `setContext` / `clearContext` / `getContext`.
+- **Service dimensions** — optional `service`, `version`, `environment` on the constructor, merged into every payload.
+- **Tail sampling** — `sampleRate`, `slowThresholdMs`, `alwaysKeepUserIds`. Errors, slow requests, and VIP users are always kept.
+
 ## [2.1.0] - 2026-07-26
 
 ### Added

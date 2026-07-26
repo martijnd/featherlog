@@ -176,7 +176,45 @@ export default function LogDetail({ log, onClose }: LogDetailProps) {
   };
 
   const dateInfo = formatDate(log.timestamp);
-  const metadataKeys = Object.keys(log.metadata || {});
+  const metadata = log.metadata || {};
+  const metadataKeys = Object.keys(metadata);
+
+  const errorObj =
+    metadata.error && typeof metadata.error === "object"
+      ? (metadata.error as Record<string, unknown>)
+      : null;
+  const stack =
+    (errorObj && typeof errorObj.stack === "string" && errorObj.stack) ||
+    (typeof metadata.stack === "string" ? metadata.stack : null);
+
+  const contextRows: { label: string; value: string }[] = [];
+  const pushContext = (label: string, value: unknown) => {
+    if (value === undefined || value === null || value === "") return;
+    if (typeof value === "object") {
+      contextRows.push({ label, value: JSON.stringify(value) });
+    } else {
+      contextRows.push({ label, value: String(value) });
+    }
+  };
+
+  pushContext("request_id", metadata.request_id);
+  pushContext("trace_id", metadata.trace_id);
+  pushContext("service", metadata.service);
+  pushContext("version", metadata.version);
+  pushContext("environment", metadata.environment);
+  pushContext("outcome", metadata.outcome);
+  pushContext("status_code", metadata.status_code);
+  pushContext("duration_ms", metadata.duration_ms);
+  pushContext("method", metadata.method);
+  pushContext("path", metadata.path);
+  if (metadata.user && typeof metadata.user === "object") {
+    pushContext("user", metadata.user);
+  } else {
+    pushContext("user_id", metadata.user_id ?? metadata.userId);
+  }
+  if (log.fingerprint) {
+    pushContext("fingerprint", log.fingerprint);
+  }
 
   return (
     <div
@@ -388,6 +426,98 @@ export default function LogDetail({ log, onClose }: LogDetailProps) {
             {log.message}
           </div>
         </div>
+
+        {/* Wide-event context */}
+        {contextRows.length > 0 && (
+          <div style={{ marginBottom: "2rem" }}>
+            <h3
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1rem",
+                fontWeight: "600",
+                color: "#495057",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Event Context
+            </h3>
+            <div
+              style={{
+                backgroundColor: "#f8f9fa",
+                borderRadius: "8px",
+                padding: "1rem",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                gap: "0.75rem",
+              }}
+            >
+              {contextRows.map((row) => (
+                <div key={row.label}>
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#6c757d",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.4px",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    {row.label}
+                  </div>
+                  <code
+                    style={{
+                      display: "block",
+                      backgroundColor: "#e9ecef",
+                      padding: "0.35rem 0.5rem",
+                      borderRadius: "4px",
+                      fontSize: "0.8rem",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {row.value}
+                  </code>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Stack trace */}
+        {stack && (
+          <div style={{ marginBottom: "2rem" }}>
+            <h3
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1rem",
+                fontWeight: "600",
+                color: "#495057",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Stack Trace
+              {errorObj?.name ? ` — ${String(errorObj.name)}` : ""}
+            </h3>
+            <pre
+              style={{
+                margin: 0,
+                backgroundColor: "#212529",
+                color: "#f8f9fa",
+                borderRadius: "8px",
+                padding: "1rem",
+                fontSize: "0.8rem",
+                overflow: "auto",
+                maxHeight: "320px",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              {stack}
+            </pre>
+          </div>
+        )}
 
         {/* Metadata */}
         {metadataKeys.length > 0 ? (

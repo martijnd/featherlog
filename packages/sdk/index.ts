@@ -1,2 +1,9 @@
-export { Logger, type LoggerOptions, type LogMetadata } from './src/Logger.js';
-
+export {
+  Logger,
+  WideEvent,
+  type LoggerOptions,
+  type LogMetadata,
+  type CapturedError,
+  type LogLevel,
+  type SendResult,
+} from "./src/Logger.js";

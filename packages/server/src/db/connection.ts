@@ -84,5 +84,11 @@ export async function initDatabase() {
     WHERE fingerprint IS NOT NULL
   `);
 
+  // GIN index for structured metadata field queries (wide-event dimensions)
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_logs_metadata_gin
+    ON logs USING GIN (metadata jsonb_path_ops)
+  `);
+
   console.log("Database initialized");
 }

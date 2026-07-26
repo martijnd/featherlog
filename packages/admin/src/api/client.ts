@@ -117,6 +117,8 @@ class ApiClient {
       level?: "error" | "warn" | "info";
       startDate?: string;
       endDate?: string;
+      request_id?: string;
+      where?: string[];
       limit?: number;
       offset?: number;
     } = {}
@@ -127,6 +129,12 @@ class ApiClient {
     if (params.level) queryParams.append("level", params.level);
     if (params.startDate) queryParams.append("startDate", params.startDate);
     if (params.endDate) queryParams.append("endDate", params.endDate);
+    if (params.request_id) queryParams.append("request_id", params.request_id);
+    if (params.where) {
+      for (const clause of params.where) {
+        queryParams.append("where", clause);
+      }
+    }
     if (params.limit) queryParams.append("limit", params.limit.toString());
     if (params.offset) queryParams.append("offset", params.offset.toString());
 

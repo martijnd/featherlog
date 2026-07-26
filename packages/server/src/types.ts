@@ -49,6 +49,13 @@ export interface LogsQueryParams {
   level?: 'error' | 'warn' | 'info';
   startDate?: string;
   endDate?: string;
+  /**
+   * Structured field filters: "path=value" (e.g. "user.id=user_456", "outcome=error").
+   * May be a single string or array when repeated as query params.
+   */
+  where?: string | string[];
+  /** Convenience shorthand for where request_id=... */
+  request_id?: string;
   limit?: number;
   offset?: number;
 }

@@ -1,6 +1,8 @@
 # Featherlog
 
-A simple logging SDK for Node.js that sends logs to your Featherlog server.
+A logging SDK for Node.js (and browsers) that sends structured **wide events** to your Featherlog server.
+
+Inspired by [canonical log lines / wide events](https://loggingsucks.com/): emit one context-rich event per request instead of many sparse log lines.
 
 ## Installation
 
@@ -8,84 +10,111 @@ A simple logging SDK for Node.js that sends logs to your Featherlog server.
 npm install featherlog
 # or
 pnpm add featherlog
-# or
-yarn add featherlog
 ```
 
-## Usage
+## Quick start
 
 ```typescript
 import { Logger } from "featherlog";
 
 const logger = new Logger({
   "project-id": "your-project-id",
+  service: "checkout-service",
+  version: "2.4.1",
+  environment: "production",
+  // Tail sampling: always keep errors/slow/VIP; sample 5% of the rest
+  sampleRate: 0.05,
+  slowThresholdMs: 2000,
+  alwaysKeepUserIds: ["enterprise_user_1"],
 });
 
-// Capture errors (recommended) — includes stack/type for issue fingerprinting
+logger.setContext({ region: "us-east-1", deployment_id: "deploy_789" });
+
+// Preferred: one wide event per request
+const event = logger.createEvent({
+  request_id: "req_8bf7ec2d",
+  method: "POST",
+  path: "/api/checkout",
+});
+
+event.set({
+  user: { id: "user_456", subscription: "premium" },
+  cart: { id: "cart_xyz", total_cents: 15999 },
+});
+
 try {
-  // your code
+  // ... handle request ...
+  event.set({ status_code: 200, outcome: "success" });
 } catch (error) {
-  await logger.capture(error, { userId: 123 });
+  event.set({ status_code: 500, outcome: "error" }).setError(error);
+  throw error;
+} finally {
+  await event.emit(); // duration_ms filled automatically
 }
 
-// Log errors as plain messages
+// Still supported: sparse logs + error capture for Issues
+await logger.capture(error, { userId: 123 });
 await logger.error("Payment failed", { orderId: "abc" });
-
-// Log warnings
 await logger.warn("Something might be wrong", { userId: 123 });
-
-// Log info
 await logger.info("User logged in", { userId: 123 });
 ```
 
+## Why wide events?
+
+String-searchable log diaries don't help at 2am. A wide event is a structured record of **what happened to this request**: user, cart, payment attempt, feature flags, error code, duration — queryable by field in the admin UI (`user.id=user_456`, `outcome=error`, `request_id=...`).
+
 ## API
 
-### `new Logger(options: LoggerOptions)`
+### `new Logger(options)`
 
-Creates a new Logger instance.
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `project-id` | string | required | Project identifier |
+| `service` | string | — | Attached to every event |
+| `version` | string | — | Release / version |
+| `environment` | string | — | e.g. `production` |
+| `sampleRate` | number | `1` | Keep rate for non-critical events (0–1) |
+| `slowThresholdMs` | number | `2000` | Always keep slower events |
+| `alwaysKeepUserIds` | string[] | `[]` | Always keep these `user.id` / `user_id` values |
 
-**Options:**
+**Endpoint:** `FEATHERLOG_ENDPOINT`, else production default or `http://localhost:3000/api/logs`.
 
-- `project-id` (string, required): Your unique project identifier
+### Context
 
-**Note:** The SDK uses origin-based authentication. Make sure to configure allowed origins for your project in the Featherlog admin panel. The SDK automatically sends the `Origin` header with requests.
+- `logger.setContext(fields)` — merge persistent fields into every event
+- `logger.clearContext()` — reset
+- `logger.getContext()` — snapshot
 
-**Endpoint Configuration:**
+### Wide events
 
-The endpoint is automatically determined based on `NODE_ENV`:
+- `logger.createEvent(initial?)` → `WideEvent`
+- `event.set(fields)` / `event.set(key, value)` — enrich
+- `event.setError(error)` — structured error + `outcome: "error"`
+- `event.emit(message?, level?)` — send once; infers level from error/status; sets `duration_ms`
 
-- `development` (or unset): Uses `FEATHERLOG_ENDPOINT` env var or defaults to `http://localhost:3000/api/logs`
-- `production`: Uses `FEATHERLOG_ENDPOINT` env var or defaults to `https://featherlog.lekkerklooien.nl/api/logs`
+### Classic methods
 
-You can override the endpoint by setting the `FEATHERLOG_ENDPOINT` environment variable.
+- `logger.capture(error, metadata?)` — error + stack for Issues fingerprinting
+- `logger.error` / `warn` / `info`
 
-### `logger.capture(error: unknown, metadata?: LogMetadata)`
+All send methods fail silently (`console.warn`) so logging never breaks callers.
 
-Captures an `Error` (or any thrown value) as an error log with structured `error.name` and `error.stack`. The server uses this to fingerprint and group occurrences into Issues in the admin UI.
+## Tail sampling
 
-### `logger.error(message: string, metadata?: LogMetadata)`
+When `sampleRate < 1`, events are kept if any of:
 
-Sends an error log to the server.
-
-### `logger.warn(message: string, metadata?: LogMetadata)`
-
-Sends a warning log to the server.
-
-### `logger.info(message: string, metadata?: LogMetadata)`
-
-Sends an info log to the server.
-
-All methods are async and return `Promise<void>`. They will silently fail if the server is unreachable to prevent breaking your application.
+1. level is `error`, or metadata has `error` / `outcome: "error"` / `status_code >= 500`
+2. `duration_ms >= slowThresholdMs`
+3. user id is in `alwaysKeepUserIds`
+4. otherwise random keep at `sampleRate`
 
 ## Authentication
 
-Featherlog uses origin-based authentication. When you create a project in the Featherlog admin panel, you configure a list of allowed origins (e.g., `https://yourdomain.com`, `http://localhost:3000`). The SDK automatically includes the `Origin` header in requests, and the server validates it against your project's allowed origins list.
-
-**Important:** Make sure to add your application's origin(s) to your project's allowed origins list in the admin panel before using the SDK.
+Origin-based: configure allowed origins for the project in the admin panel. Node requests without an Origin header are allowed when the project exists.
 
 ## Requirements
 
-- Node.js 18.0.0 or higher (for native `fetch` support)
+- Node.js 18.0.0 or higher (native `fetch`)
 
 ## License
 

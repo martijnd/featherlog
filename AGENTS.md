@@ -25,7 +25,7 @@ Server TS imports use `.js` extensions (e.g. `./db/connection.js`) even for `.ts
 
 - **Ingest (`POST /api/logs`):** origin-based. Body needs `project-id`, `level`, `message`. Browser `Origin`/`Referer` must match the project's `origins` JSONB list (`*` and prefix wildcards supported). Requests with no origin (typical Node SDK) are allowed if the project exists.
 - **Admin API:** JWT `Authorization: Bearer …` after `/api/auth/login`.
-- **SDK:** only requires `{ "project-id": "..." }`. Endpoint from `FEATHERLOG_ENDPOINT`, else `http://localhost:3000/api/logs` (dev) or `https://featherlog.lekkerklooien.nl/api/logs` (production `NODE_ENV`).
+- **SDK:** requires `{ "project-id": "..." }`; optional `service` / `version` / `environment`, context (`setContext`), wide events (`createEvent` → enrich → `emit` once), and tail sampling (`sampleRate`, always keep errors/slow/VIP). Endpoint from `FEATHERLOG_ENDPOINT`, else `http://localhost:3000/api/logs` (dev) or `https://featherlog.lekkerklooien.nl/api/logs` (production `NODE_ENV`).
 
 ## Commands
 
@@ -46,11 +46,11 @@ Package-local:
 # server
 cd packages/server && pnpm dev
 pnpm create-user <username> <password>
-pnpm create-project <id> <name> '["http://localhost:5174"]'
+pnpm create-project <id> <name> '["http://localhost:4001"]'
 
 # admin / demo (Vite)
-cd packages/admin && pnpm dev   # typically :5173
-cd packages/demo && pnpm dev    # typically :5174
+cd packages/admin && pnpm dev   # :4000
+cd packages/demo && pnpm dev    # :4001
 ```
 
 Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
@@ -61,12 +61,12 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 2. `docker compose up -d postgres`
 3. Build admin before relying on server-served UI: `pnpm build:admin` (or use Vite admin with `VITE_API_URL`).
 4. Server: `http://localhost:3000` — `/api/*`, `/health`, and static admin from `packages/admin/dist` when present.
-5. Demo needs a project whose origins include the demo origin (e.g. `http://localhost:5174`).
+5. Demo needs a project whose origins include the demo origin (e.g. `http://localhost:4001`).
 
 ## API surface
 
 - `POST /api/logs` — ingest (public + origin check)
-- `GET /api/logs` — list/filter (JWT); supports SSE-style live updates via `logBroadcaster`
+- `GET /api/logs` — list/filter (JWT); filters include `project-id`, `level`, dates, `request_id`, and repeated `where=path=value` for JSONB metadata (wide-event dimensions). SSE via `logBroadcaster`
 - `GET /api/logs/projects` — projects (JWT); project CRUD also under logs routes
 - `POST /api/auth/login`, `POST /api/auth/register`
 

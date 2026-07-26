@@ -78,7 +78,7 @@ cd packages/demo
 pnpm dev
 ```
 
-The demo runs at http://localhost:5174 (default project-id `demo-app`, overridable with `VITE_FEATHERLOG_PROJECT_ID`). Make sure that project's allowed origins include `http://localhost:5174`.
+Local Vite apps: admin at http://localhost:4000, demo at http://localhost:4001 (default project-id `demo-app`, overridable with `VITE_FEATHERLOG_PROJECT_ID`). Make sure that project's allowed origins include `http://localhost:4001`.
 
 ### Production Deployment
 
@@ -171,14 +171,14 @@ Projects require a non-empty list of allowed origins:
 
 ```bash
 cd packages/server
-pnpm create-project my-project "My Project" '["http://localhost:5174","https://yourdomain.com"]'
+pnpm create-project my-project "My Project" '["http://localhost:4001","https://yourdomain.com"]'
 ```
 
 Or via the admin UI after logging in. Or SQL:
 
 ```sql
 INSERT INTO projects (id, name, origins)
-VALUES ('my-project', 'My Project', '["http://localhost:5174"]');
+VALUES ('my-project', 'My Project', '["http://localhost:4001"]');
 ```
 
 Use the same `project-id` when initializing `Logger`, and keep the origins list in sync with where your app runs.

@@ -7,6 +7,97 @@ import { computeFingerprint } from "../services/fingerprint.js";
 
 const router: Router = Router();
 
+/** Parse "path=value" filters into a nested JSON object for jsonb containment. */
+function parseWhereClause(clause: string): Record<string, unknown> | null {
+  const eq = clause.indexOf("=");
+  if (eq <= 0) return null;
+
+  const path = clause.slice(0, eq).trim();
+  const value = clause.slice(eq + 1).trim();
+  if (!path || value === "") return null;
+
+  // Reject unsafe path segments
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(path)) {
+    return null;
+  }
+
+  let parsedValue: unknown = value;
+  if (value === "true") parsedValue = true;
+  else if (value === "false") parsedValue = false;
+  else if (value === "null") parsedValue = null;
+  else if (/^-?\d+(\.\d+)?$/.test(value)) parsedValue = Number(value);
+
+  const parts = path.split(".");
+  const root: Record<string, unknown> = {};
+  let cursor: Record<string, unknown> = root;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const next: Record<string, unknown> = {};
+    cursor[parts[i]] = next;
+    cursor = next;
+  }
+  cursor[parts[parts.length - 1]] = parsedValue;
+  return root;
+}
+
+function normalizeWhereParams(
+  where: string | string[] | undefined
+): string[] {
+  if (!where) return [];
+  return (Array.isArray(where) ? where : [where]).filter(
+    (w) => typeof w === "string" && w.trim().length > 0
+  );
+}
+
+function appendLogFilters(
+  sql: string,
+  params: unknown[],
+  query: LogsQueryParams
+): { sql: string; params: unknown[] } {
+  let paramIndex = params.length + 1;
+  let nextSql = sql;
+  const nextParams = [...params];
+
+  if (query["project-id"]) {
+    nextSql += ` AND project_id = $${paramIndex}`;
+    nextParams.push(query["project-id"]);
+    paramIndex++;
+  }
+
+  if (query.level) {
+    nextSql += ` AND level = $${paramIndex}`;
+    nextParams.push(query.level);
+    paramIndex++;
+  }
+
+  if (query.startDate) {
+    nextSql += ` AND timestamp >= $${paramIndex}`;
+    nextParams.push(new Date(query.startDate));
+    paramIndex++;
+  }
+
+  if (query.endDate) {
+    nextSql += ` AND timestamp <= $${paramIndex}`;
+    nextParams.push(new Date(query.endDate));
+    paramIndex++;
+  }
+
+  if (query.request_id) {
+    nextSql += ` AND metadata @> $${paramIndex}::jsonb`;
+    nextParams.push(JSON.stringify({ request_id: query.request_id }));
+    paramIndex++;
+  }
+
+  for (const clause of normalizeWhereParams(query.where)) {
+    const filterObj = parseWhereClause(clause);
+    if (!filterObj) continue;
+    nextSql += ` AND metadata @> $${paramIndex}::jsonb`;
+    nextParams.push(JSON.stringify(filterObj));
+    paramIndex++;
+  }
+
+  return { sql: nextSql, params: nextParams };
+}
+
 // POST /api/logs - Public endpoint for SDK to send logs (validates origin)
 router.post("/", async (req: Request, res: Response) => {
   try {
@@ -122,78 +213,33 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // GET /api/logs - Get logs with filtering (JWT protected)
+// Supports structured wide-event queries via ?where=user.id=123&where=outcome=error
 router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const query: LogsQueryParams = req.query as any;
 
-    let sql = "SELECT * FROM logs WHERE 1=1";
-    const params: any[] = [];
-    let paramIndex = 1;
-
-    if (query["project-id"]) {
-      sql += ` AND project_id = $${paramIndex}`;
-      params.push(query["project-id"]);
-      paramIndex++;
-    }
-
-    if (query.level) {
-      sql += ` AND level = $${paramIndex}`;
-      params.push(query.level);
-      paramIndex++;
-    }
-
-    if (query.startDate) {
-      sql += ` AND timestamp >= $${paramIndex}`;
-      params.push(new Date(query.startDate));
-      paramIndex++;
-    }
-
-    if (query.endDate) {
-      sql += ` AND timestamp <= $${paramIndex}`;
-      params.push(new Date(query.endDate));
-      paramIndex++;
-    }
-
-    sql += " ORDER BY timestamp DESC";
+    const filtered = appendLogFilters("SELECT * FROM logs WHERE 1=1", [], query);
+    let sql = filtered.sql + " ORDER BY timestamp DESC";
+    const params = [...filtered.params];
 
     const limit = query.limit ? parseInt(query.limit.toString(), 10) : 100;
     const offset = query.offset ? parseInt(query.offset.toString(), 10) : 0;
+    const paramIndex = params.length + 1;
 
     sql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     const result = await pool.query(sql, params);
 
-    // Get total count for pagination
-    let countSql = "SELECT COUNT(*) FROM logs WHERE 1=1";
-    const countParams: any[] = [];
-    let countParamIndex = 1;
-
-    if (query["project-id"]) {
-      countSql += ` AND project_id = $${countParamIndex}`;
-      countParams.push(query["project-id"]);
-      countParamIndex++;
-    }
-
-    if (query.level) {
-      countSql += ` AND level = $${countParamIndex}`;
-      countParams.push(query.level);
-      countParamIndex++;
-    }
-
-    if (query.startDate) {
-      countSql += ` AND timestamp >= $${countParamIndex}`;
-      countParams.push(new Date(query.startDate));
-      countParamIndex++;
-    }
-
-    if (query.endDate) {
-      countSql += ` AND timestamp <= $${countParamIndex}`;
-      countParams.push(new Date(query.endDate));
-      countParamIndex++;
-    }
-
-    const countResult = await pool.query(countSql, countParams);
+    const countFiltered = appendLogFilters(
+      "SELECT COUNT(*) FROM logs WHERE 1=1",
+      [],
+      query
+    );
+    const countResult = await pool.query(
+      countFiltered.sql,
+      countFiltered.params
+    );
     const total = parseInt(countResult.rows[0].count, 10);
 
     res.json({

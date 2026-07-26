@@ -31,6 +31,8 @@ function App() {
   const [selectedLevel, setSelectedLevel] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [requestId, setRequestId] = useState("");
+  const [whereFilters, setWhereFilters] = useState<string[]>([]);
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
@@ -69,7 +71,16 @@ function App() {
         loadLogs();
       }
     }
-  }, [selectedProject, selectedLevel, startDate, endDate, offset, isRealtime]);
+  }, [
+    selectedProject,
+    selectedLevel,
+    startDate,
+    endDate,
+    requestId,
+    whereFilters,
+    offset,
+    isRealtime,
+  ]);
 
   const startRealtimeUpdates = () => {
     if (!isRealtime) return;
@@ -128,6 +139,30 @@ function App() {
     }
   };
 
+  const getMetadataPath = (obj: Record<string, any>, path: string): unknown => {
+    return path.split(".").reduce<unknown>((acc, key) => {
+      if (acc && typeof acc === "object" && key in (acc as object)) {
+        return (acc as Record<string, unknown>)[key];
+      }
+      return undefined;
+    }, obj);
+  };
+
+  const matchesWhere = (log: LogEntry, clause: string): boolean => {
+    const eq = clause.indexOf("=");
+    if (eq <= 0) return true;
+    const path = clause.slice(0, eq).trim();
+    const expectedRaw = clause.slice(eq + 1).trim();
+    let expected: unknown = expectedRaw;
+    if (expectedRaw === "true") expected = true;
+    else if (expectedRaw === "false") expected = false;
+    else if (expectedRaw === "null") expected = null;
+    else if (/^-?\d+(\.\d+)?$/.test(expectedRaw)) expected = Number(expectedRaw);
+
+    const actual = getMetadataPath(log.metadata || {}, path);
+    return actual === expected || String(actual) === expectedRaw;
+  };
+
   const matchesFilters = (log: LogEntry): boolean => {
     if (selectedProject && log["project-id"] !== selectedProject) {
       return false;
@@ -140,6 +175,15 @@ function App() {
     }
     if (endDate && new Date(log.timestamp) > new Date(endDate)) {
       return false;
+    }
+    if (
+      requestId &&
+      String((log.metadata || {}).request_id ?? "") !== requestId
+    ) {
+      return false;
+    }
+    for (const clause of whereFilters) {
+      if (!matchesWhere(log, clause)) return false;
     }
     return true;
   };
@@ -165,6 +209,8 @@ function App() {
       if (selectedLevel) params.level = selectedLevel;
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
+      if (requestId) params.request_id = requestId;
+      if (whereFilters.length > 0) params.where = whereFilters;
 
       const response = await apiClient.getLogs(params);
       setLogs(response.logs);
@@ -193,6 +239,8 @@ function App() {
     setSelectedLevel("");
     setStartDate("");
     setEndDate("");
+    setRequestId("");
+    setWhereFilters([]);
     setOffset(0);
   };
 
@@ -218,6 +266,8 @@ function App() {
     setSelectedLevel("");
     setStartDate("");
     setEndDate("");
+    setRequestId("");
+    setWhereFilters([]);
     setOffset(0);
   };
 
@@ -421,6 +471,8 @@ function App() {
             selectedLevel={selectedLevel}
             startDate={startDate}
             endDate={endDate}
+            requestId={requestId}
+            whereFilters={whereFilters}
             onProjectChange={(projectId) => {
               setSelectedProject(projectId);
               setOffset(0);
@@ -435,6 +487,14 @@ function App() {
             }}
             onEndDateChange={(date) => {
               setEndDate(date);
+              setOffset(0);
+            }}
+            onRequestIdChange={(id) => {
+              setRequestId(id);
+              setOffset(0);
+            }}
+            onWhereFiltersChange={(filters) => {
+              setWhereFilters(filters);
               setOffset(0);
             }}
             onClearFilters={handleClearFilters}

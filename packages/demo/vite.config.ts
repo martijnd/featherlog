@@ -5,7 +5,8 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 3001,
+    port: 4001,
+    strictPort: true,
     fs: {
       // Allow Vite to access files outside the demo package
       allow: [".."],
@@ -25,7 +26,7 @@ export default defineConfig({
     // Ensure NODE_ENV is set to "development" in dev mode
     // This helps the SDK detect the correct environment
     "process.env.NODE_ENV": JSON.stringify(
-      process.env.NODE_ENV || "development"
+      process.env.NODE_ENV || "development",
     ),
   },
 });
