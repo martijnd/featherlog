@@ -8,7 +8,9 @@
     "build:sdk": "pnpm --filter featherlog build",
     "build:server": "pnpm --filter server build:all",
     "build:admin": "pnpm --filter admin build",
-    "dev:demo": "pnpm --filter demo dev"
+    "dev": "docker compose up -d postgres && pnpm --parallel --filter server --filter admin --filter demo run dev",
+    "dev:demo": "pnpm --filter demo dev",
+    "dev:admin": "pnpm --filter admin dev"
   },
   "keywords": [
     "logging",

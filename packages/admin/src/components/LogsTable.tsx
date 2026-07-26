@@ -1,8 +1,10 @@
+import { Fragment, useState } from "react";
 import { LogEntry } from "../api/client";
 
 interface GroupedLogEntry extends LogEntry {
   count: number;
   firstOccurrence: LogEntry;
+  occurrences: LogEntry[];
 }
 
 interface LogsTableProps {
@@ -15,6 +17,8 @@ interface LogsTableProps {
   onLogClick?: (log: LogEntry) => void;
 }
 
+const MAX_VISIBLE_OCCURRENCES = 10;
+
 export default function LogsTable({
   logs,
   loading,
@@ -24,6 +28,8 @@ export default function LogsTable({
   onPageChange,
   onLogClick,
 }: LogsTableProps) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+
   const getLevelColor = (level: string) => {
     switch (level) {
       case "error":
@@ -49,6 +55,23 @@ export default function LogsTable({
     });
   };
 
+  const createGroupedEntry = (group: LogEntry[]): GroupedLogEntry => {
+    // Newest first for display; oldest is firstOccurrence
+    const newestFirst = [...group].sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    const lastOccurrence = newestFirst[0];
+    const firstOccurrence = newestFirst[newestFirst.length - 1];
+
+    return {
+      ...lastOccurrence,
+      count: group.length,
+      firstOccurrence,
+      occurrences: newestFirst,
+    };
+  };
+
   // Group consecutive logs by message, level, project-id, and metadata
   // This preserves chronological order while grouping identical consecutive logs
   const groupLogs = (logs: LogEntry[]): (LogEntry | GroupedLogEntry)[] => {
@@ -71,61 +94,28 @@ export default function LogsTable({
       return `${log["project-id"]}|${log.level}|${log.message}|${metadataKey}`;
     };
 
+    const finalizeGroup = (group: LogEntry[]) => {
+      if (group.length === 0) return;
+      if (group.length > 1) {
+        result.push(createGroupedEntry(group));
+      } else {
+        result.push(group[0]);
+      }
+    };
+
     sortedLogs.forEach((log) => {
       const groupKey = getGroupKey(log);
 
       if (currentGroupKey === groupKey) {
-        // Same as current group, add to it
         currentGroup.push(log);
       } else {
-        // Different group, finalize current group if it exists
-        if (currentGroup.length > 0) {
-          if (currentGroup.length > 1) {
-            // Group has multiple logs, create grouped entry
-            const sortedGroup = [...currentGroup].sort(
-              (a, b) =>
-                new Date(a.timestamp).getTime() -
-                new Date(b.timestamp).getTime()
-            );
-            const firstOccurrence = sortedGroup[0];
-            const lastOccurrence = sortedGroup[sortedGroup.length - 1];
-
-            result.push({
-              ...lastOccurrence, // Use most recent for display
-              count: currentGroup.length,
-              firstOccurrence: firstOccurrence,
-            } as GroupedLogEntry);
-          } else {
-            // Single log, add as-is
-            result.push(currentGroup[0]);
-          }
-        }
-
-        // Start new group
+        finalizeGroup(currentGroup);
         currentGroup = [log];
         currentGroupKey = groupKey;
       }
     });
 
-    // Finalize the last group
-    if (currentGroup.length > 0) {
-      if (currentGroup.length > 1) {
-        const sortedGroup = [...currentGroup].sort(
-          (a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
-        const firstOccurrence = sortedGroup[0];
-        const lastOccurrence = sortedGroup[sortedGroup.length - 1];
-
-        result.push({
-          ...lastOccurrence,
-          count: currentGroup.length,
-          firstOccurrence: firstOccurrence,
-        } as GroupedLogEntry);
-      } else {
-        result.push(currentGroup[0]);
-      }
-    }
+    finalizeGroup(currentGroup);
 
     return result;
   };
@@ -135,6 +125,18 @@ export default function LogsTable({
     log: LogEntry | GroupedLogEntry
   ): log is GroupedLogEntry => {
     return "count" in log && log.count > 1;
+  };
+
+  const toggleGroupExpanded = (groupId: number) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
   };
 
   const currentPage = Math.floor(offset / limit) + 1;
@@ -216,116 +218,220 @@ export default function LogsTable({
                 const grouped = isGrouped(log);
                 // When grouped, the log already contains the last occurrence's data
                 const displayLog = log;
+                const isExpanded = grouped && expandedGroups.has(log.id);
+                const visibleOccurrences = grouped
+                  ? log.occurrences.slice(0, MAX_VISIBLE_OCCURRENCES)
+                  : [];
 
                 return (
-                  <tr
-                    key={log.id}
-                    style={{
-                      borderBottom: "1px solid #dee2e6",
-                      cursor: onLogClick ? "pointer" : "default",
-                      position: "relative",
-                    }}
-                    onClick={() => onLogClick?.(displayLog)}
-                    onMouseOver={(e) => {
-                      if (onLogClick) {
-                        e.currentTarget.style.backgroundColor = "#f8f9fa";
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      if (onLogClick) {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                      }
-                    }}
-                  >
-                    <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
-                      {formatDate(displayLog.timestamp)}
-                    </td>
-                    <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
-                      {displayLog["project-id"]}
-                    </td>
-                    <td style={{ padding: "1rem" }}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "0.25rem 0.75rem",
-                          borderRadius: "4px",
-                          backgroundColor: getLevelColor(displayLog.level),
-                          color: "white",
-                          fontSize: "0.875rem",
-                          fontWeight: "500",
-                        }}
-                      >
-                        {displayLog.level.toUpperCase()}
-                      </span>
-                    </td>
-                    <td
+                  <Fragment key={log.id}>
+                    <tr
                       style={{
-                        padding: "1rem",
-                        fontSize: "0.9rem",
-                        maxWidth: "400px",
-                        wordBreak: "break-word",
+                        borderBottom: isExpanded
+                          ? "none"
+                          : "1px solid #dee2e6",
+                        cursor: onLogClick ? "pointer" : "default",
+                        position: "relative",
+                      }}
+                      onClick={() => onLogClick?.(displayLog)}
+                      onMouseOver={(e) => {
+                        if (onLogClick) {
+                          e.currentTarget.style.backgroundColor = "#f8f9fa";
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (onLogClick) {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }
                       }}
                     >
-                      {displayLog.message}
-                    </td>
-                    <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
-                      {grouped && (
+                      <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
+                        {formatDate(displayLog.timestamp)}
+                      </td>
+                      <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
+                        {displayLog["project-id"]}
+                      </td>
+                      <td style={{ padding: "1rem" }}>
                         <span
                           style={{
-                            position: "absolute",
-                            top: "50%",
-                            right: "0",
-                            transform: "translate(50%, -50%)",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            minWidth: "24px",
-                            height: "24px",
-                            padding: "0 6px",
-                            backgroundColor: "#007bff",
+                            display: "inline-block",
+                            padding: "0.25rem 0.75rem",
+                            borderRadius: "4px",
+                            backgroundColor: getLevelColor(displayLog.level),
                             color: "white",
-                            borderRadius: "12px",
-                            fontSize: "0.75rem",
-                            fontWeight: "600",
-                            lineHeight: "1",
-                            zIndex: 10,
-                            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                          }}
-                          title={`This error occurred ${log.count} times`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onLogClick?.(displayLog);
+                            fontSize: "0.875rem",
+                            fontWeight: "500",
                           }}
                         >
-                          {log.count}
+                          {displayLog.level.toUpperCase()}
                         </span>
-                      )}
-                      {Object.keys(displayLog.metadata || {}).length > 0 ? (
-                        <details>
-                          <summary
-                            style={{ cursor: "pointer", color: "#007bff" }}
-                          >
-                            View ({Object.keys(displayLog.metadata).length}{" "}
-                            keys)
-                          </summary>
-                          <pre
+                      </td>
+                      <td
+                        style={{
+                          padding: "1rem",
+                          fontSize: "0.9rem",
+                          maxWidth: "400px",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {displayLog.message}
+                      </td>
+                      <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
+                        {grouped && (
+                          <span
                             style={{
-                              marginTop: "0.5rem",
-                              padding: "0.5rem",
-                              backgroundColor: "#f8f9fa",
-                              borderRadius: "4px",
-                              fontSize: "0.8rem",
-                              overflow: "auto",
+                              position: "absolute",
+                              top: "50%",
+                              right: "0",
+                              transform: "translate(50%, -50%)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minWidth: "24px",
+                              height: "24px",
+                              padding: "0 6px",
+                              backgroundColor: isExpanded
+                                ? "#0056b3"
+                                : "#007bff",
+                              color: "white",
+                              borderRadius: "12px",
+                              fontSize: "0.75rem",
+                              fontWeight: "600",
+                              lineHeight: "1",
+                              zIndex: 10,
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                              cursor: "pointer",
+                            }}
+                            title={`Show ${Math.min(log.count, MAX_VISIBLE_OCCURRENCES)} of ${log.count} occurrences`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleGroupExpanded(log.id);
                             }}
                           >
-                            {JSON.stringify(displayLog.metadata, null, 2)}
-                          </pre>
-                        </details>
-                      ) : (
-                        <span style={{ color: "#6c757d" }}>—</span>
-                      )}
-                    </td>
-                  </tr>
+                            {log.count}
+                          </span>
+                        )}
+                        {Object.keys(displayLog.metadata || {}).length > 0 ? (
+                          <details
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <summary
+                              style={{ cursor: "pointer", color: "#007bff" }}
+                            >
+                              View ({Object.keys(displayLog.metadata).length}{" "}
+                              keys)
+                            </summary>
+                            <pre
+                              style={{
+                                marginTop: "0.5rem",
+                                padding: "0.5rem",
+                                backgroundColor: "#f8f9fa",
+                                borderRadius: "4px",
+                                fontSize: "0.8rem",
+                                overflow: "auto",
+                              }}
+                            >
+                              {JSON.stringify(displayLog.metadata, null, 2)}
+                            </pre>
+                          </details>
+                        ) : (
+                          <span style={{ color: "#6c757d" }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          style={{
+                            padding: "0 1rem 1rem 1rem",
+                            backgroundColor: "#f8f9fa",
+                            borderBottom: "1px solid #dee2e6",
+                          }}
+                        >
+                          <div
+                            style={{
+                              border: "1px solid #dee2e6",
+                              borderRadius: "4px",
+                              backgroundColor: "white",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <div
+                              style={{
+                                padding: "0.5rem 0.75rem",
+                                fontSize: "0.8rem",
+                                fontWeight: "600",
+                                color: "#495057",
+                                borderBottom: "1px solid #dee2e6",
+                                backgroundColor: "#f1f3f5",
+                              }}
+                            >
+                              Occurrences
+                              {log.count > MAX_VISIBLE_OCCURRENCES
+                                ? ` (showing ${MAX_VISIBLE_OCCURRENCES} of ${log.count})`
+                                : ` (${log.count})`}
+                            </div>
+                            <ul
+                              style={{
+                                listStyle: "none",
+                                margin: 0,
+                                padding: 0,
+                              }}
+                            >
+                              {visibleOccurrences.map((occurrence, index) => (
+                                <li
+                                  key={occurrence.id}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "1rem",
+                                    padding: "0.6rem 0.75rem",
+                                    borderBottom:
+                                      index < visibleOccurrences.length - 1
+                                        ? "1px solid #eee"
+                                        : "none",
+                                    cursor: onLogClick ? "pointer" : "default",
+                                    fontSize: "0.85rem",
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onLogClick?.(occurrence);
+                                  }}
+                                  onMouseOver={(e) => {
+                                    if (onLogClick) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "#f8f9fa";
+                                    }
+                                  }}
+                                  onMouseOut={(e) => {
+                                    if (onLogClick) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "transparent";
+                                    }
+                                  }}
+                                >
+                                  <span style={{ color: "#212529" }}>
+                                    {formatDate(occurrence.timestamp)}
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: "#6c757d",
+                                      fontFamily: "monospace",
+                                      fontSize: "0.8rem",
+                                    }}
+                                  >
+                                    #{occurrence.id}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
