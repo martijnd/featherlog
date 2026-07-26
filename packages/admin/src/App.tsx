@@ -8,8 +8,20 @@ import CreateProject from "./components/CreateProject";
 import ProjectsManager from "./components/ProjectsManager";
 import IssuesList from "./components/IssuesList";
 import Dashboard, { DashboardLogsNav } from "./components/Dashboard";
+import ShareView from "./components/ShareView";
+
+function getShareTokenFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/share\/([^/]+)\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
 
 function App() {
+  const shareToken = getShareTokenFromPath(window.location.pathname);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -318,6 +330,10 @@ function App() {
     loadProjects();
     showToast("Project created successfully!", "success");
   };
+
+  if (shareToken) {
+    return <ShareView token={shareToken} />;
+  }
 
   if (!isAuthenticated) {
     return <Login onLogin={() => setIsAuthenticated(true)} />;

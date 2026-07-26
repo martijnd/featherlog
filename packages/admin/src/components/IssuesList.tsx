@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { apiClient, Issue, LogEntry, Project } from "../api/client";
+import ShareLinkPanel from "./ShareLinkPanel";
 
 interface IssuesListProps {
   projects: Project[];
@@ -350,9 +351,20 @@ export default function IssuesList({
                                 color: "#495057",
                                 borderBottom: "1px solid #dee2e6",
                                 backgroundColor: "#f1f3f5",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: "0.75rem",
                               }}
                             >
-                              Recent occurrences
+                              <span>Recent occurrences</span>
+                              <ShareLinkPanel
+                                request={{
+                                  type: "issue",
+                                  fingerprint: issue.fingerprint,
+                                  "project-id": issue["project-id"],
+                                }}
+                              />
                             </div>
                             {occurrencesLoading ? (
                               <div style={{ padding: "1rem" }}>Loading...</div>

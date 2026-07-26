@@ -7,6 +7,7 @@ import { existsSync } from "fs";
 import { initDatabase } from "./db/connection.js";
 import logsRouter from "./routes/logs.js";
 import authRouter from "./routes/auth.js";
+import shareRouter from "./routes/share.js";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use(express.json());
 // API Routes (must come before static files)
 app.use("/api/logs", logsRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/share", shareRouter);
 
 // Health check
 app.get("/health", (req, res) => {

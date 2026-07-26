@@ -45,6 +45,32 @@ export interface Project {
 
 export type DashboardRange = "24h" | "7d" | "30d";
 
+export type ShareResourceType = "log" | "issue";
+
+export type CreateShareRequest =
+  | { type: "log"; logId: number }
+  | { type: "issue"; fingerprint: string; "project-id": string };
+
+export interface CreateShareResponse {
+  token: string;
+  url: string;
+  expires_at: string;
+  type: ShareResourceType;
+}
+
+export type SharePayload =
+  | {
+      type: "log";
+      expires_at: string;
+      log: LogEntry;
+    }
+  | {
+      type: "issue";
+      expires_at: string;
+      issue: Issue;
+      logs: LogEntry[];
+    };
+
 export interface DashboardStats {
   range: DashboardRange;
   startDate: string;
@@ -267,6 +293,38 @@ class ApiClient {
       {
         method: "DELETE",
       }
+    );
+  }
+
+  async createShare(body: CreateShareRequest): Promise<CreateShareResponse> {
+    return this.request<CreateShareResponse>("/api/share", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getShare(token: string): Promise<SharePayload> {
+    const url = API_BASE_URL
+      ? `${API_BASE_URL}/api/share/${encodeURIComponent(token)}`
+      : `/api/share/${encodeURIComponent(token)}`;
+    const response = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ error: "Unknown error" }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async revokeShare(token: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(
+      `/api/share/${encodeURIComponent(token)}`,
+      { method: "DELETE" }
     );
   }
 

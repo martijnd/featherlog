@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { LogEntry } from "../api/client";
+import ShareLinkPanel from "./ShareLinkPanel";
 
 interface LogDetailProps {
   log: LogEntry;
   onClose: () => void;
+  /** Public share page: inline layout, no share/close actions */
+  variant?: "modal" | "page";
+  /** When false, hide the share control (e.g. anonymous public viewers). */
+  showShare?: boolean;
 }
 
 interface JsonViewerProps {
@@ -127,7 +132,13 @@ function JsonViewer({ data, level = 0 }: JsonViewerProps) {
   return <span>{String(data)}</span>;
 }
 
-export default function LogDetail({ log, onClose }: LogDetailProps) {
+export default function LogDetail({
+  log,
+  onClose,
+  variant = "modal",
+  showShare = true,
+}: LogDetailProps) {
+  const isPage = variant === "page";
   const getLevelColor = (level: string) => {
     switch (level) {
       case "error":
@@ -218,18 +229,26 @@ export default function LogDetail({ log, onClose }: LogDetailProps) {
 
   return (
     <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "white",
-        zIndex: 2000,
-        overflow: "auto",
-        display: "flex",
-        flexDirection: "column",
-      }}
+      style={
+        isPage
+          ? {
+              backgroundColor: "white",
+              display: "flex",
+              flexDirection: "column",
+            }
+          : {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "white",
+              zIndex: 2000,
+              overflow: "auto",
+              display: "flex",
+              flexDirection: "column",
+            }
+      }
     >
       {/* Header */}
       <div
@@ -280,26 +299,40 @@ export default function LogDetail({ log, onClose }: LogDetailProps) {
             {log.message}
           </h2>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: "1.5rem",
-            cursor: "pointer",
-            color: "#6c757d",
-            padding: "0.25rem 0.5rem",
-            lineHeight: "1",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.color = "#212529";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.color = "#6c757d";
-          }}
-        >
-          ×
-        </button>
+        {!isPage && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              flexShrink: 0,
+            }}
+          >
+            {showShare && (
+              <ShareLinkPanel request={{ type: "log", logId: log.id }} />
+            )}
+            <button
+              onClick={onClose}
+              style={{
+                background: "none",
+                border: "none",
+                fontSize: "1.5rem",
+                cursor: "pointer",
+                color: "#6c757d",
+                padding: "0.25rem 0.5rem",
+                lineHeight: "1",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.color = "#212529";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.color = "#6c757d";
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}

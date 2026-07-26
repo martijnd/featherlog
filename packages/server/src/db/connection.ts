@@ -90,5 +90,31 @@ export async function initDatabase() {
     ON logs USING GIN (metadata jsonb_path_ops)
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS share_links (
+      token VARCHAR(64) PRIMARY KEY,
+      resource_type VARCHAR(10) NOT NULL,
+      log_id INTEGER REFERENCES logs(id) ON DELETE CASCADE,
+      project_id VARCHAR(255) REFERENCES projects(id) ON DELETE CASCADE,
+      fingerprint VARCHAR(64),
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_share_links_log_id
+    ON share_links(log_id)
+    WHERE log_id IS NOT NULL
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_share_links_issue
+    ON share_links(project_id, fingerprint)
+    WHERE fingerprint IS NOT NULL
+  `);
+
   console.log("Database initialized");
 }
