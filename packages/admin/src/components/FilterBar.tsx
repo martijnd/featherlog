@@ -35,24 +35,34 @@ export default function FilterBar({
   onClearFilters,
 }: FilterBarProps) {
   const [draft, setDraft] = useState("");
+  const [filterHint, setFilterHint] = useState<string | null>(null);
 
   const addFilter = () => {
     const value = draft.trim();
-    if (!value.includes("=")) return;
+    if (!value) return;
+    if (!value.includes("=")) {
+      setFilterHint("Use path=value, e.g. service=checkout-service");
+      return;
+    }
     if (whereFilters.includes(value)) {
       setDraft("");
+      setFilterHint(null);
       return;
     }
     onWhereFiltersChange([...whereFilters, value]);
     setDraft("");
+    setFilterHint(null);
   };
 
   return (
     <div className="panel panel-pad u-mb-md">
       <div className="filter-grid">
         <div>
-          <label className="form-label">Project</label>
+          <label className="form-label" htmlFor="filter-project">
+            Project
+          </label>
           <select
+            id="filter-project"
             className="select"
             value={selectedProject}
             onChange={(e) => onProjectChange(e.target.value)}
@@ -66,8 +76,11 @@ export default function FilterBar({
           </select>
         </div>
         <div>
-          <label className="form-label">Level</label>
+          <label className="form-label" htmlFor="filter-level">
+            Level
+          </label>
           <select
+            id="filter-level"
             className="select"
             value={selectedLevel}
             onChange={(e) => onLevelChange(e.target.value)}
@@ -79,8 +92,11 @@ export default function FilterBar({
           </select>
         </div>
         <div>
-          <label className="form-label">Start date</label>
+          <label className="form-label" htmlFor="filter-start-date">
+            Start date
+          </label>
           <input
+            id="filter-start-date"
             className="input"
             type="datetime-local"
             value={startDate}
@@ -88,8 +104,11 @@ export default function FilterBar({
           />
         </div>
         <div>
-          <label className="form-label">End date</label>
+          <label className="form-label" htmlFor="filter-end-date">
+            End date
+          </label>
           <input
+            id="filter-end-date"
             className="input"
             type="datetime-local"
             value={endDate}
@@ -100,17 +119,21 @@ export default function FilterBar({
 
       <div className="filter-grid">
         <div>
-          <label className="form-label">Request ID</label>
+          <label className="form-label" htmlFor="filter-request-id">
+            Request ID
+          </label>
           <input
+            id="filter-request-id"
             className="input input-mono"
             type="text"
             value={requestId}
             onChange={(e) => onRequestIdChange(e.target.value)}
             placeholder="req_8bf7ec2d"
+            spellCheck={false}
           />
         </div>
         <div>
-          <label className="form-label">
+          <label className="form-label" htmlFor="filter-where">
             Field filter{" "}
             <span className="u-text-muted" style={{ fontWeight: 400 }}>
               (path=value)
@@ -118,10 +141,14 @@ export default function FilterBar({
           </label>
           <div className="u-flex filter-add-row">
             <input
+              id="filter-where"
               className="input input-mono"
               type="text"
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (filterHint) setFilterHint(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -129,11 +156,19 @@ export default function FilterBar({
                 }
               }}
               placeholder="user.id=user_456"
+              spellCheck={false}
+              aria-invalid={filterHint ? true : undefined}
+              aria-describedby={filterHint ? "filter-where-hint" : undefined}
             />
             <button type="button" className="btn btn-primary" onClick={addFilter}>
               Add
             </button>
           </div>
+          {filterHint && (
+            <p id="filter-where-hint" className="form-hint is-error" role="alert">
+              {filterHint}
+            </p>
+          )}
         </div>
       </div>
 
@@ -168,6 +203,7 @@ export default function FilterBar({
         className="btn btn-secondary"
         onClick={() => {
           setDraft("");
+          setFilterHint(null);
           onClearFilters();
         }}
       >

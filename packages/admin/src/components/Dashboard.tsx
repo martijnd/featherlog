@@ -571,11 +571,26 @@ export default function Dashboard({
                     ]
                       .filter(Boolean)
                       .join(" ") || undefined}
+                    role={onNavigateToIssue ? "button" : undefined}
+                    tabIndex={onNavigateToIssue ? 0 : undefined}
                     onClick={() =>
                       onNavigateToIssue?.(
                         issue.fingerprint,
                         issue["project-id"]
                       )
+                    }
+                    onKeyDown={
+                      onNavigateToIssue
+                        ? (e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onNavigateToIssue(
+                                issue.fingerprint,
+                                issue["project-id"]
+                              );
+                            }
+                          }
+                        : undefined
                     }
                     title={
                       onNavigateToIssue ? "Open issue in Issues tab" : undefined
@@ -636,7 +651,19 @@ export default function Dashboard({
                     ]
                       .filter(Boolean)
                       .join(" ") || undefined}
+                    role={onLogClick ? "button" : undefined}
+                    tabIndex={onLogClick ? 0 : undefined}
                     onClick={() => onLogClick?.(log)}
+                    onKeyDown={
+                      onLogClick
+                        ? (e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onLogClick(log);
+                            }
+                          }
+                        : undefined
+                    }
                   >
                     <td>
                       <div className="cell-message" title={log.message}>

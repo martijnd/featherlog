@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   apiClient,
   CreateShareRequest,
@@ -83,6 +83,19 @@ export default function ShareLinkPanel({
       minute: "2-digit",
     });
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
   return (
     <div className="u-relative">
       <button
@@ -97,7 +110,12 @@ export default function ShareLinkPanel({
       </button>
 
       {open && (
-        <div className="popover" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="popover"
+          role="dialog"
+          aria-label="Public share link"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="popover-header">
             <strong style={{ fontSize: "13px" }}>Public share link</strong>
             <button

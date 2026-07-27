@@ -5,16 +5,17 @@ interface CopyPermalinkButtonProps {
 }
 
 export default function CopyPermalinkButton({ url }: CopyPermalinkButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   const handleCopy = async (e: MouseEvent) => {
     e.stopPropagation();
     try {
       await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setStatus("copied");
+      window.setTimeout(() => setStatus("idle"), 2000);
     } catch {
-      // ignore
+      setStatus("failed");
+      window.setTimeout(() => setStatus("idle"), 2000);
     }
   };
 
@@ -25,7 +26,11 @@ export default function CopyPermalinkButton({ url }: CopyPermalinkButtonProps) {
       onClick={(e) => void handleCopy(e)}
       title="Copy admin permalink"
     >
-      {copied ? "Copied" : "Copy link"}
+      {status === "copied"
+        ? "Copied"
+        : status === "failed"
+          ? "Copy failed"
+          : "Copy link"}
     </button>
   );
 }

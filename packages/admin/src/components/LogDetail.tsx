@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { LogEntry } from "../api/client";
 import ShareLinkPanel from "./ShareLinkPanel";
 import CopyPermalinkButton from "./CopyPermalinkButton";
@@ -58,9 +58,9 @@ function JsonViewer({ data, level = 0 }: JsonViewerProps) {
     }
     return (
       <div style={{ marginLeft: `${indent}px` }}>
-        <span className="json-toggle" onClick={toggleExpand}>
+        <button type="button" className="json-toggle" onClick={toggleExpand}>
           {isExpanded ? "▼" : "▶"} [
-        </span>
+        </button>
         {isExpanded && (
           <div style={{ marginLeft: "20px" }}>
             {data.map((item, index) => (
@@ -89,9 +89,9 @@ function JsonViewer({ data, level = 0 }: JsonViewerProps) {
     }
     return (
       <div style={{ marginLeft: `${indent}px` }}>
-        <span className="json-toggle" onClick={toggleExpand}>
+        <button type="button" className="json-toggle" onClick={toggleExpand}>
           {isExpanded ? "▼" : "▶"} {"{"}
-        </span>
+        </button>
         {isExpanded && (
           <div style={{ marginLeft: "20px" }}>
             {keys.map((k, index) => (
@@ -124,6 +124,45 @@ export default function LogDetail({
   showShare = true,
 }: LogDetailProps) {
   const isPage = variant === "page";
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (isPage) return;
+
+    const dialog = dialogRef.current;
+    const parent = dialog?.parentElement;
+    const siblings = parent
+      ? Array.from(parent.children).filter((child) => child !== dialog)
+      : [];
+    for (const sibling of siblings) {
+      sibling.setAttribute("inert", "");
+    }
+
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    dialog?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      for (const sibling of siblings) {
+        sibling.removeAttribute("inert");
+      }
+      previouslyFocused?.focus();
+    };
+  }, [isPage]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -201,14 +240,27 @@ export default function LogDetail({
   }
 
   return (
-    <div className={`log-detail${isPage ? "" : " is-modal"}`}>
+    <div
+      ref={dialogRef}
+      className={`log-detail${isPage ? "" : " is-modal"}`}
+      {...(!isPage
+        ? {
+            role: "dialog",
+            "aria-modal": true,
+            "aria-labelledby": titleId,
+            tabIndex: -1,
+          }
+        : {})}
+    >
       <div className="log-detail-header">
         <div className="u-flex-1">
           <div className="log-detail-meta">
             <span className={levelBadgeClass(log.level)}>{log.level}</span>
             <span className="u-text-sm u-text-muted">Log ID: {log.id}</span>
           </div>
-          <h2 className="log-detail-title">{log.message}</h2>
+          <h2 id={titleId} className="log-detail-title">
+            {log.message}
+          </h2>
         </div>
         {!isPage && (
           <div className="log-detail-actions">

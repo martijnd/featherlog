@@ -136,7 +136,10 @@ export default function ShareView({ token }: { token: string }) {
 
   if (loading) {
     return (
-      <div className="empty-state share-scroll">
+      <div
+        className="empty-state share-scroll"
+        style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
         Loading shared log…
       </div>
     );

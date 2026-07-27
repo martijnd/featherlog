@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 
 interface CreateProjectProps {
@@ -14,6 +14,41 @@ export default function CreateProject({
   const [origins, setOrigins] = useState<string[]>([""]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const idFieldId = useId();
+  const nameFieldId = useId();
+
+  const handleClose = () => {
+    setIsOpen(false);
+    setProjectId("");
+    setProjectName("");
+    setOrigins([""]);
+    setError("");
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    dialogRef.current?.querySelector<HTMLElement>("input")?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,25 +73,13 @@ export default function CreateProject({
       }
 
       await apiClient.createProject(projectId, projectName, validOrigins);
-      setIsOpen(false);
-      setProjectId("");
-      setProjectName("");
-      setOrigins([""]);
-      setError("");
+      handleClose();
       onProjectCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    setIsOpen(false);
-    setProjectId("");
-    setProjectName("");
-    setOrigins([""]);
-    setError("");
   };
 
   const addOriginField = () => {
@@ -87,9 +110,16 @@ export default function CreateProject({
 
   return (
     <div className="modal-backdrop" onClick={handleClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
-          <h2>Create project</h2>
+          <h2 id={titleId}>Create project</h2>
           <button
             type="button"
             className="btn-icon"
@@ -102,14 +132,18 @@ export default function CreateProject({
 
         <form onSubmit={handleSubmit}>
           <div className="login-field">
-            <label className="form-label">Project ID *</label>
+            <label className="form-label" htmlFor={idFieldId}>
+              Project ID *
+            </label>
             <input
+              id={idFieldId}
               className="input"
               type="text"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               required
               placeholder="my-project"
+              spellCheck={false}
             />
             <span className="form-hint">
               Unique identifier for this project (used in SDK)
@@ -117,8 +151,11 @@ export default function CreateProject({
           </div>
 
           <div className="login-field">
-            <label className="form-label">Project name *</label>
+            <label className="form-label" htmlFor={nameFieldId}>
+              Project name *
+            </label>
             <input
+              id={nameFieldId}
               className="input"
               type="text"
               value={projectName}
@@ -143,12 +180,19 @@ export default function CreateProject({
                       : "https://another-origin.com"
                   }
                   required={index === 0}
+                  aria-label={
+                    index === 0
+                      ? "Allowed origin (required)"
+                      : `Allowed origin ${index + 1}`
+                  }
+                  spellCheck={false}
                 />
                 {origins.length > 1 && (
                   <button
                     type="button"
                     className="btn btn-danger"
                     onClick={() => removeOriginField(index)}
+                    aria-label={`Remove origin ${index + 1}`}
                   >
                     ×
                   </button>

@@ -273,7 +273,17 @@ export default function IssuesList({
                   <Fragment key={`${issue["project-id"]}-${issue.fingerprint}`}>
                     <tr
                       className="is-clickable"
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      aria-label={`${issue.status} ${getErrorName(issue)}: ${issue.message}`}
                       onClick={() => toggleIssue(issue)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          void toggleIssue(issue);
+                        }
+                      }}
                     >
                       <td>
                         <div className="u-flex-center u-gap-md">
@@ -377,10 +387,26 @@ export default function IssuesList({
                                   <li
                                     key={log.id}
                                     className={`occurrence-item${onLogClick ? " is-clickable" : ""}`}
+                                    role={onLogClick ? "button" : undefined}
+                                    tabIndex={onLogClick ? 0 : undefined}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       onLogClick?.(log);
                                     }}
+                                    onKeyDown={
+                                      onLogClick
+                                        ? (e) => {
+                                            if (
+                                              e.key === "Enter" ||
+                                              e.key === " "
+                                            ) {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              onLogClick(log);
+                                            }
+                                          }
+                                        : undefined
+                                    }
                                   >
                                     <span>
                                       <RelativeTime value={log.timestamp} />

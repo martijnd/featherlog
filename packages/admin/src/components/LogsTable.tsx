@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { LogEntry } from "../api/client";
+import { formatRelativeDate } from "../time";
 import { levelBadgeClass } from "../ui";
 import { flashLevelClass, useArriveFlash } from "../useArriveFlash";
 import RelativeTime from "./RelativeTime";
@@ -173,31 +174,43 @@ export default function LogsTable({
                       </td>
                       <td style={{ maxWidth: 400, wordBreak: "break-word" }}>
                         <div className="u-flex-center u-gap-sm" style={{ flexWrap: "wrap" }}>
-                          <span style={{ minWidth: 0 }}>{displayLog.message}</span>
+                          {onLogClick ? (
+                            <button
+                              type="button"
+                              className="table-row-action"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onLogClick(displayLog);
+                              }}
+                              aria-label={`Open log: ${displayLog.level} ${displayLog.message} (${formatRelativeDate(displayLog.timestamp)})`}
+                            >
+                              {displayLog.message}
+                            </button>
+                          ) : (
+                            <span style={{ minWidth: 0 }}>{displayLog.message}</span>
+                          )}
                           {grouped && (
-                            <span
+                            <button
+                              type="button"
                               className={`badge-count${isExpanded ? " is-active" : ""}`}
                               title={`Show ${Math.min(log.count, MAX_VISIBLE_OCCURRENCES)} of ${log.count} occurrences`}
+                              aria-expanded={isExpanded}
+                              aria-label={`${log.count} occurrences`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleGroupExpanded(rowKey);
                               }}
-                              style={{ cursor: "pointer", flexShrink: 0 }}
+                              style={{ flexShrink: 0 }}
                             >
                               {log.count}
-                            </span>
+                            </button>
                           )}
                         </div>
                       </td>
                       <td>
                         {Object.keys(displayLog.metadata || {}).length > 0 ? (
                           <details onClick={(e) => e.stopPropagation()}>
-                            <summary
-                              style={{
-                                cursor: "pointer",
-                                color: "var(--accent)",
-                              }}
-                            >
+                            <summary className="meta-summary">
                               View ({Object.keys(displayLog.metadata).length}{" "}
                               keys)
                             </summary>
@@ -239,10 +252,26 @@ export default function LogsTable({
                                 <li
                                   key={occurrence.id}
                                   className={`occurrence-item${onLogClick ? " is-clickable" : ""}`}
+                                  role={onLogClick ? "button" : undefined}
+                                  tabIndex={onLogClick ? 0 : undefined}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onLogClick?.(occurrence);
                                   }}
+                                  onKeyDown={
+                                    onLogClick
+                                      ? (e) => {
+                                          if (
+                                            e.key === "Enter" ||
+                                            e.key === " "
+                                          ) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            onLogClick(occurrence);
+                                          }
+                                        }
+                                      : undefined
+                                  }
                                 >
                                   <span>
                                     <RelativeTime value={occurrence.timestamp} />

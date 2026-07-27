@@ -48,6 +48,7 @@ export default function Login({ onLogin }: LoginProps) {
               onChange={(e) => setUsername(e.target.value)}
               required
               autoComplete="username"
+              spellCheck={false}
             />
           </div>
           <div className="login-field">
@@ -73,11 +74,8 @@ export default function Login({ onLogin }: LoginProps) {
             {loading ? "Signing in…" : "Sign in"}
           </button>
           <div className="login-hint">
-            Need an account? Create one via CLI:{" "}
-            <code>
-              docker compose exec server node dist/scripts/create-user.js
-              &lt;username&gt; &lt;password&gt;
-            </code>
+            Need an account? From the repo root:{" "}
+            <code>pnpm create-user &lt;username&gt; &lt;password&gt;</code>
           </div>
         </form>
       </div>

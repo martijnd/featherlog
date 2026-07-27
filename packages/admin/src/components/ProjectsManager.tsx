@@ -161,12 +161,19 @@ export default function ProjectsManager({
                               : "https://another-origin.com"
                           }
                           required={index === 0}
+                          aria-label={
+                            index === 0
+                              ? "Allowed origin (required)"
+                              : `Allowed origin ${index + 1}`
+                          }
+                          spellCheck={false}
                         />
                         {origins.length > 1 && (
                           <button
                             type="button"
                             className="btn btn-danger"
                             onClick={() => removeOriginField(index)}
+                            aria-label={`Remove origin ${index + 1}`}
                           >
                             ×
                           </button>
