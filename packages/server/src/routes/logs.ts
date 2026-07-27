@@ -288,10 +288,17 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
-type StatsRange = "24h" | "7d" | "30d";
+type StatsRange = "24h" | "7d" | "30d" | "all";
 
 function parseStatsRange(value: unknown): StatsRange {
-  if (value === "24h" || value === "7d" || value === "30d") return value;
+  if (
+    value === "24h" ||
+    value === "7d" ||
+    value === "30d" ||
+    value === "all"
+  ) {
+    return value;
+  }
   return "7d";
 }
 
@@ -310,6 +317,16 @@ function getStatsWindow(range: StatsRange): {
       endDate,
       truncUnit: "hour",
       stepInterval: "1 hour",
+    };
+  }
+  if (range === "all") {
+    // Placeholder start; route replaces with earliest log timestamp
+    startDate.setTime(0);
+    return {
+      startDate,
+      endDate,
+      truncUnit: "day",
+      stepInterval: "1 day",
     };
   }
   if (range === "30d") {
@@ -333,8 +350,23 @@ router.get(
     try {
       const range = parseStatsRange(req.query.range);
       const projectId = req.query["project-id"] as string | undefined;
-      const { startDate, endDate, truncUnit, stepInterval } =
+      let { startDate, endDate, truncUnit, stepInterval } =
         getStatsWindow(range);
+
+      if (range === "all") {
+        const minParams: unknown[] = [];
+        let minClause = "";
+        if (projectId) {
+          minClause = " WHERE project_id = $1";
+          minParams.push(projectId);
+        }
+        const minResult = await pool.query(
+          `SELECT MIN(timestamp) AS min_ts FROM logs${minClause}`,
+          minParams
+        );
+        const minTs = minResult.rows[0]?.min_ts;
+        startDate = minTs ? new Date(minTs) : new Date(endDate);
+      }
 
       // truncUnit / stepInterval are fixed literals from getStatsWindow
       const filterParams: unknown[] = [startDate, endDate];
@@ -355,6 +387,17 @@ router.get(
         WHERE timestamp >= $1 AND timestamp <= $2${projectClause}
         `,
         filterParams
+      );
+
+      const allTimeParams: unknown[] = [];
+      let allTimeClause = "";
+      if (projectId) {
+        allTimeClause = " WHERE project_id = $1";
+        allTimeParams.push(projectId);
+      }
+      const allTimeResult = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM logs${allTimeClause}`,
+        allTimeParams
       );
 
       const seriesResult = await pool.query(
@@ -405,6 +448,7 @@ router.get(
           warn: totals.warn,
           info: totals.info,
         },
+        allTimeTotal: allTimeResult.rows[0]?.total ?? 0,
         series: seriesResult.rows.map((row) => ({
           bucket: new Date(row.bucket).toISOString(),
           error: row.error,

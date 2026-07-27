@@ -447,9 +447,22 @@ a {
   background: var(--surface-muted);
 }
 
+.segmented-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.segmented-item:disabled:hover {
+  background: transparent;
+}
+
 .segmented-item.is-active {
   background: var(--accent);
   color: var(--text-inverse);
+}
+
+.segmented-item.is-active:disabled:hover {
+  background: var(--accent);
 }
 
 /* Realtime indicator */
@@ -984,6 +997,38 @@ button.badge-count {
   flex-wrap: wrap;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.toolbar-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.toolbar-cluster {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.link-quiet {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link-quiet:hover {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .select-inline {

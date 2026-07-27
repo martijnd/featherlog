@@ -49,7 +49,7 @@ export interface Project {
   created_at: string;
 }
 
-export type DashboardRange = "24h" | "7d" | "30d";
+export type DashboardRange = "24h" | "7d" | "30d" | "all";
 
 export type ShareResourceType = "log" | "issue";
 
@@ -87,6 +87,8 @@ export interface DashboardStats {
     warn: number;
     info: number;
   };
+  /** Count of all stored logs (ignores selected time range) */
+  allTimeTotal: number;
   series: Array<{
     bucket: string;
     error: number;

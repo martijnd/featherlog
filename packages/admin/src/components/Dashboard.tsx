@@ -23,8 +23,8 @@ import RelativeTime from "./RelativeTime";
 
 export interface DashboardLogsNav {
   level?: "" | "error" | "warn" | "info";
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 interface DashboardProps {
@@ -55,7 +55,12 @@ function bucketWindow(
   return { start, end };
 }
 
-const RANGES: DashboardRange[] = ["24h", "7d", "30d"];
+const RANGES: Array<{ id: DashboardRange; label: string }> = [
+  { id: "24h", label: "24h" },
+  { id: "7d", label: "7d" },
+  { id: "30d", label: "30d" },
+  { id: "all", label: "all" },
+];
 const RECENT_ERRORS_LIMIT = 15;
 const TOP_ISSUES_LIMIT = 10;
 
@@ -107,6 +112,13 @@ export default function Dashboard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastLiveSeqRef = useRef<number | null>(liveEvent?.seq ?? null);
+  const loadSeqRef = useRef(0);
+  const rangeRef = useRef(range);
+  const loadingRef = useRef(loading);
+  const statsRangeRef = useRef<DashboardRange | undefined>(stats?.range);
+  rangeRef.current = range;
+  loadingRef.current = loading;
+  statsRangeRef.current = stats?.range;
   const [flashingIssues, setFlashingIssues] = useState<Set<string>>(
     () => new Set()
   );
@@ -149,6 +161,7 @@ export default function Dashboard({
   }, []);
 
   useEffect(() => {
+    const seq = ++loadSeqRef.current;
     let cancelled = false;
 
     const load = async () => {
@@ -162,7 +175,7 @@ export default function Dashboard({
         if (selectedProject) statsParams["project-id"] = selectedProject;
 
         const statsResponse = await apiClient.getDashboardStats(statsParams);
-        if (cancelled) return;
+        if (cancelled || seq !== loadSeqRef.current) return;
 
         const issuesParams: {
           "project-id"?: string;
@@ -191,12 +204,12 @@ export default function Dashboard({
           apiClient.getLogs(logsParams),
         ]);
 
-        if (cancelled) return;
+        if (cancelled || seq !== loadSeqRef.current) return;
         setStats(statsResponse);
         setIssues(issuesResponse.issues);
         setRecentErrors(logsResponse.logs);
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled || seq !== loadSeqRef.current) return;
         console.error("Failed to load dashboard:", err);
         setError(
           err instanceof Error ? err.message : "Failed to load dashboard"
@@ -205,11 +218,13 @@ export default function Dashboard({
         setIssues([]);
         setRecentErrors([]);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && seq === loadSeqRef.current) {
+          setLoading(false);
+        }
       }
     };
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };
@@ -222,13 +237,27 @@ export default function Dashboard({
 
     const log = liveEvent.log;
     if (selectedProject && log["project-id"] !== selectedProject) return;
+    // Don't patch stale range data while a range/project reload is in flight
+    if (loadingRef.current) return;
+    if (statsRangeRef.current && statsRangeRef.current !== rangeRef.current) {
+      return;
+    }
 
     setStats((prev) => {
       if (!prev) return prev;
+      if (prev.range !== rangeRef.current) return prev;
+
+      const allTimeTotal = (prev.allTimeTotal ?? 0) + 1;
+
       const ts = new Date(log.timestamp).getTime();
       const start = new Date(prev.startDate).getTime();
       const end = new Date(prev.endDate).getTime();
-      if (ts < start || ts > end + 60_000) return prev;
+      if (
+        prev.range !== "all" &&
+        (ts < start || ts > end + 60_000)
+      ) {
+        return { ...prev, allTimeTotal };
+      }
 
       const level = log.level;
       const totals = {
@@ -255,6 +284,7 @@ export default function Dashboard({
         ...prev,
         endDate: new Date().toISOString(),
         totals,
+        allTimeTotal,
         series,
       };
     });
@@ -334,21 +364,27 @@ export default function Dashboard({
     })) ?? [];
 
   const totals = stats?.totals ?? { total: 0, error: 0, warn: 0, info: 0 };
+  const statsMatchRange = Boolean(stats && stats.range === range);
+  const showStatsLoading = loading || !statsMatchRange;
 
   const navigateToRange = (
     level: "" | "error" | "warn" | "info",
-    start: Date,
-    end: Date
+    start?: Date,
+    end?: Date
   ) => {
     onNavigateToLogs?.({
       level,
-      startDate: toDatetimeLocalValue(start),
-      endDate: toDatetimeLocalValue(end),
+      startDate: start ? toDatetimeLocalValue(start) : "",
+      endDate: end ? toDatetimeLocalValue(end) : "",
     });
   };
 
   const handleCardClick = (level: "" | "error" | "warn" | "info") => {
     if (!stats || !onNavigateToLogs) return;
+    if (stats.range === "all") {
+      navigateToRange(level);
+      return;
+    }
     navigateToRange(
       level,
       new Date(stats.startDate),
@@ -417,33 +453,39 @@ export default function Dashboard({
   return (
     <div>
       <div className="toolbar">
-        <label className="form-row">
-          <span className="form-inline-label">Project</span>
-          <select
-            className="select select-inline"
-            value={selectedProject}
-            onChange={(e) => onProjectChange(e.target.value)}
-          >
-            <option value="">All projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.id})
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="segmented" role="group" aria-label="Time range">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              className={`segmented-item${range === r ? " is-active" : ""}`}
-              onClick={() => setRange(r)}
+        <div className="toolbar-cluster">
+          <label className="form-row">
+            <span className="form-inline-label">Project</span>
+            <select
+              className="select select-inline"
+              value={selectedProject}
+              onChange={(e) => onProjectChange(e.target.value)}
             >
-              {r}
-            </button>
-          ))}
+              <option value="">All projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.id})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="segmented" role="group" aria-label="Time range">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className={`segmented-item${range === r.id ? " is-active" : ""}`}
+                disabled={loading}
+                aria-busy={loading || undefined}
+                onClick={() => {
+                  if (r.id !== range) setRange(r.id);
+                }}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -471,7 +513,7 @@ export default function Dashboard({
           >
             <div className="kpi-label">{card.label}</div>
             <div className={`kpi-value ${card.valueClass}`}>
-              {loading && !stats ? "—" : card.value.toLocaleString()}
+              {showStatsLoading ? "—" : card.value.toLocaleString()}
             </div>
           </div>
         ))}
@@ -481,7 +523,7 @@ export default function Dashboard({
         <h3 className="panel-section-title" style={{ marginBottom: "1rem" }}>
           Logs over time
         </h3>
-        {loading && !stats ? (
+        {showStatsLoading ? (
           <div className="empty-state">Loading…</div>
         ) : chartData.length === 0 ? (
           <div className="empty-state">No log data in this range.</div>

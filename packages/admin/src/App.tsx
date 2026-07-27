@@ -47,7 +47,6 @@ function App() {
     type: "success" | "error";
   } | null>(null);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
-  const [issuesRefreshKey, setIssuesRefreshKey] = useState(0);
   const [expandIssueFingerprint, setExpandIssueFingerprint] = useState<
     string | null
   >(null);
@@ -293,10 +292,6 @@ function App() {
             setTotal((prevTotal) => prevTotal + 1);
           }
 
-          if (newLog.fingerprint) {
-            setIssuesRefreshKey((k) => k + 1);
-          }
-
           setDashboardLiveEvent((prev) => ({
             seq: (prev?.seq ?? 0) + 1,
             log: newLog,
@@ -522,8 +517,8 @@ function App() {
     const filters: LogsFilterState = {
       projectId: selectedProject,
       level: nav.level ?? "",
-      startDate: nav.startDate,
-      endDate: nav.endDate,
+      startDate: nav.startDate ?? "",
+      endDate: nav.endDate ?? "",
       requestId: "",
       where: [],
       q: "",
@@ -827,7 +822,7 @@ function App() {
             selectedProject={selectedProject}
             onProjectChange={setSelectedProject}
             onLogClick={openLog}
-            refreshKey={issuesRefreshKey}
+            liveEvent={dashboardLiveEvent}
             expandFingerprint={expandIssueFingerprint}
             onExpandFingerprintHandled={() => setExpandIssueFingerprint(null)}
             onExpandedIssueChange={handleExpandedIssueChange}
