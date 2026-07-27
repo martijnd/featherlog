@@ -59,8 +59,8 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 
 1. Copy env examples: root `.env.example`, `packages/server/.env.example`, `packages/admin/.env.example` (and demo if needed).
 2. `docker compose up -d postgres`
-3. Build admin before relying on server-served UI: `pnpm build:admin` (or use Vite admin with `VITE_API_URL`).
-4. Server: `http://localhost:3000` — `/api/*`, `/health`, and static admin from `packages/admin/dist` when present.
+3. Local admin UI: Vite on `http://localhost:4000` (proxies `/api` to the server). Production builds serve static admin from the server only when `NODE_ENV=production`.
+4. Server: `http://localhost:3000` — `/api/*` and `/health` (no static admin in development).
 5. Demo needs a project whose origins include the demo origin (e.g. `http://localhost:4001`).
 
 ## API surface
@@ -88,6 +88,6 @@ DB tables (created in `packages/server/src/db/connection.ts`): `projects` (`orig
 
 ## Gotchas
 
-- Server without a built admin still runs the API; static UI is skipped with a warning.
+- In development the server is API-only; use Vite admin on `:4000`. Static admin is served from the server only when `NODE_ENV=production` (and `admin/dist` exists).
 - `create-project` requires a non-empty origins JSON array; a lone `"*"` is rejected by the CLI.
 - CORS on the server is permissive; real gating is per-project origins on ingest.

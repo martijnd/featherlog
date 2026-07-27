@@ -498,31 +498,16 @@ export default function Dashboard({
       </div>
 
       <div style={{ ...panelStyle, marginBottom: "1.25rem" }}>
-        <div
+        <h3
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            marginBottom: "1rem",
-            gap: "1rem",
+            margin: "0 0 1rem",
+            fontSize: "1rem",
+            color: "#212529",
+            fontWeight: 600,
           }}
         >
-          <h3
-            style={{
-              margin: 0,
-              fontSize: "1rem",
-              color: "#212529",
-              fontWeight: 600,
-            }}
-          >
-            Logs over time
-          </h3>
-          {onNavigateToLogs && (
-            <span style={{ fontSize: "0.8rem", color: "#6c757d" }}>
-              Click a point to open Logs
-            </span>
-          )}
-        </div>
+          Logs over time
+        </h3>
         {loading && !stats ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "#6c757d" }}>
             Loading...

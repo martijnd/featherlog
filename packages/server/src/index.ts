@@ -45,26 +45,31 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Serve static files from admin build
-// In Docker: admin/dist is copied to server/admin/dist
-// In development: use packages/admin/dist relative to compiled dist folder
+// Serve built admin only in production (Docker / NODE_ENV=production).
+// Local `pnpm dev` uses the Vite admin on :4000 instead.
+const isProduction = process.env.NODE_ENV === "production";
+
 const adminDistPath = (() => {
+  if (!isProduction) {
+    return null;
+  }
+
   // Try Docker path first (admin/dist copied to server/admin/dist)
   const dockerPath = path.join(__dirname, "../admin/dist");
-  // Try development path (from packages/server/dist to packages/admin/dist)
-  const devPath = path.join(__dirname, "../../admin/dist");
+  // Fallback: packages/admin/dist relative to compiled dist folder
+  const builtPath = path.join(__dirname, "../../admin/dist");
 
   if (existsSync(dockerPath)) {
     console.log(`Serving admin UI from Docker path: ${dockerPath}`);
     return dockerPath;
   }
-  if (existsSync(devPath)) {
-    console.log(`Serving admin UI from development path: ${devPath}`);
-    return devPath;
+  if (existsSync(builtPath)) {
+    console.log(`Serving admin UI from: ${builtPath}`);
+    return builtPath;
   }
   console.warn(`Admin UI not found. Tried:`);
   console.warn(`  - Docker path: ${dockerPath}`);
-  console.warn(`  - Dev path: ${devPath}`);
+  console.warn(`  - Built path: ${builtPath}`);
   console.warn(`Please build the admin UI: cd packages/admin && pnpm build`);
   return null;
 })();
@@ -81,10 +86,21 @@ if (adminDistPath) {
     res.sendFile(path.join(adminDistPath, "index.html"));
   });
 } else {
-  // Admin UI not built - show helpful message
   app.get("*", (req, res) => {
     if (req.path.startsWith("/api")) {
       return res.status(404).json({ error: "Not found" });
+    }
+    if (!isProduction) {
+      res.status(404).send(`
+        <html>
+          <body style="font-family: sans-serif; padding: 2rem; text-align: center;">
+            <h1>API only</h1>
+            <p>In development the admin UI runs on Vite.</p>
+            <p>Open <a href="http://localhost:4000">http://localhost:4000</a></p>
+          </body>
+        </html>
+      `);
+      return;
     }
     res.status(503).send(`
       <html>
@@ -104,7 +120,11 @@ async function start() {
     await initDatabase();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
-      console.log(`Admin UI available at http://localhost:${PORT}`);
+      if (adminDistPath) {
+        console.log(`Admin UI available at http://localhost:${PORT}`);
+      } else if (!isProduction) {
+        console.log(`Admin UI (Vite): http://localhost:4000`);
+      }
     });
   } catch (error) {
     console.error("Failed to start server:", error);
