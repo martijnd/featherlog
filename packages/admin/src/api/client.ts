@@ -136,6 +136,13 @@ class ApiClient {
     });
 
     if (response.status === 401) {
+      // Login failures are 401s too — don't hard-reload or the form loses its error.
+      if (endpoint === "/api/auth/login") {
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Invalid credentials" }));
+        throw new Error(error.error || "Invalid credentials");
+      }
       this.clearToken();
       window.location.href = "/";
       throw new Error("Unauthorized");
