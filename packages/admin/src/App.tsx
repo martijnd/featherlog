@@ -3,20 +3,27 @@ import { apiClient, LogEntry, Project } from "./api/client";
 import Login from "./components/Login";
 import FilterBar from "./components/FilterBar";
 import LogsTable from "./components/LogsTable";
-import LogDetail from "./components/LogDetail";
+import LogDetail, { LogPivotAction } from "./components/LogDetail";
 import CreateProject from "./components/CreateProject";
 import ProjectsManager from "./components/ProjectsManager";
 import IssuesList from "./components/IssuesList";
 import Dashboard, { DashboardLogsNav } from "./components/Dashboard";
 import ShareView from "./components/ShareView";
+import KeyboardShortcutsHelp, {
+  isTypingTarget,
+  ShortcutRow,
+} from "./components/KeyboardShortcutsHelp";
 import { BrandMark, BrandWordmark } from "./components/Brand";
 import {
   AdminRoute,
   AdminView,
+  emptyLogsFilters,
+  LogsFilterState,
   navigatePath,
   parseAdminRoute,
   pathForIssue,
   pathForLog,
+  pathForLogs,
   pathForView,
 } from "./permalink";
 
@@ -52,9 +59,11 @@ function App() {
     seq: number;
     log: LogEntry;
   } | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const skipUrlSyncRef = useRef(false);
   const routeResolvedRef = useRef(false);
+  const loadLogsSeqRef = useRef(0);
 
   // Filter state
   const [selectedProject, setSelectedProject] = useState("");
@@ -62,6 +71,7 @@ function App() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [requestId, setRequestId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [whereFilters, setWhereFilters] = useState<string[]>([]);
   const [offset, setOffset] = useState(0);
   const limit = 50;
@@ -75,6 +85,37 @@ function App() {
     },
     []
   );
+
+  const currentLogsFilters = useCallback((): LogsFilterState => {
+    return {
+      projectId: selectedProject,
+      level: (selectedLevel as LogsFilterState["level"]) || "",
+      startDate,
+      endDate,
+      requestId,
+      where: whereFilters,
+      q: searchQuery,
+    };
+  }, [
+    selectedProject,
+    selectedLevel,
+    startDate,
+    endDate,
+    requestId,
+    whereFilters,
+    searchQuery,
+  ]);
+
+  const applyLogsFilters = useCallback((filters: LogsFilterState) => {
+    setSelectedProject(filters.projectId);
+    setSelectedLevel(filters.level);
+    setStartDate(filters.startDate);
+    setEndDate(filters.endDate);
+    setRequestId(filters.requestId);
+    setWhereFilters(filters.where);
+    setSearchQuery(filters.q);
+    setOffset(0);
+  }, []);
 
   const applyRoute = useCallback(
     async (route: AdminRoute, replaceUrl = false) => {
@@ -91,7 +132,8 @@ function App() {
           case "logs":
             setActiveView("logs");
             setSelectedLog(null);
-            if (replaceUrl) navigatePath("/logs", true);
+            applyLogsFilters(route.filters);
+            if (replaceUrl) navigatePath(pathForLogs(route.filters), true);
             break;
           case "log": {
             setActiveView("logs");
@@ -103,7 +145,7 @@ function App() {
               showToast("Log not found", "error");
               setSelectedLog(null);
               setActiveView("logs");
-              navigatePath("/logs", true);
+              navigatePath(pathForLogs(emptyLogsFilters()), true);
             }
             break;
           }
@@ -146,8 +188,22 @@ function App() {
         }, 0);
       }
     },
-    [showToast]
+    [showToast, applyLogsFilters]
   );
+
+  // Keep /logs?... in sync with active filters (shareable / bookmarkable views)
+  useEffect(() => {
+    if (!isAuthenticated || shareToken) return;
+    if (activeView !== "logs" || selectedLog) return;
+    if (skipUrlSyncRef.current) return;
+    navigatePath(pathForLogs(currentLogsFilters()), true);
+  }, [
+    isAuthenticated,
+    shareToken,
+    activeView,
+    selectedLog,
+    currentLogsFilters,
+  ]);
 
   useEffect(() => {
     if (apiClient.getToken()) {
@@ -213,6 +269,7 @@ function App() {
     endDate,
     requestId,
     whereFilters,
+    searchQuery,
     offset,
     isRealtime,
   ]);
@@ -313,6 +370,12 @@ function App() {
     ) {
       return false;
     }
+    if (
+      searchQuery &&
+      !log.message.toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
+      return false;
+    }
     for (const clause of whereFilters) {
       if (!matchesWhere(log, clause)) return false;
     }
@@ -329,6 +392,7 @@ function App() {
   };
 
   const loadLogs = async () => {
+    const seq = ++loadLogsSeqRef.current;
     setLoading(true);
     try {
       const params: any = {
@@ -341,18 +405,23 @@ function App() {
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
       if (requestId) params.request_id = requestId;
+      if (searchQuery) params.q = searchQuery;
       if (whereFilters.length > 0) params.where = whereFilters;
 
       const response = await apiClient.getLogs(params);
+      if (seq !== loadLogsSeqRef.current) return;
       setLogs(response.logs);
       setTotal(response.total);
     } catch (error) {
+      if (seq !== loadLogsSeqRef.current) return;
       console.error("Failed to load logs:", error);
       if (error instanceof Error && error.message === "Unauthorized") {
         setIsAuthenticated(false);
       }
     } finally {
-      setLoading(false);
+      if (seq === loadLogsSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -371,6 +440,7 @@ function App() {
     setStartDate("");
     setEndDate("");
     setRequestId("");
+    setSearchQuery("");
     setWhereFilters([]);
     setOffset(0);
     setSelectedLog(null);
@@ -393,26 +463,27 @@ function App() {
   };
 
   const handleClearFilters = () => {
-    setSelectedProject("");
-    setSelectedLevel("");
-    setStartDate("");
-    setEndDate("");
-    setRequestId("");
-    setWhereFilters([]);
-    setOffset(0);
+    applyLogsFilters(emptyLogsFilters());
   };
 
-  const switchView = (view: AdminView) => {
-    setActiveView(view);
-    setSelectedLog(null);
-    if (view !== "issues") {
-      setExpandIssueFingerprint(null);
-      setExpandedIssue(null);
-    }
-    if (!skipUrlSyncRef.current) {
-      navigatePath(pathForView(view));
-    }
-  };
+  const switchView = useCallback(
+    (view: AdminView) => {
+      setActiveView(view);
+      setSelectedLog(null);
+      if (view !== "issues") {
+        setExpandIssueFingerprint(null);
+        setExpandedIssue(null);
+      }
+      if (!skipUrlSyncRef.current) {
+        if (view === "logs") {
+          navigatePath(pathForLogs(currentLogsFilters()));
+        } else {
+          navigatePath(pathForView(view));
+        }
+      }
+    },
+    [currentLogsFilters]
+  );
 
   const openLog = (log: LogEntry) => {
     setSelectedLog(log);
@@ -428,6 +499,8 @@ function App() {
       navigatePath(
         pathForIssue(expandedIssue.fingerprint, expandedIssue.projectId)
       );
+    } else if (activeView === "logs") {
+      navigatePath(pathForLogs(currentLogsFilters()));
     } else {
       navigatePath(pathForView(activeView));
     }
@@ -446,13 +519,19 @@ function App() {
   };
 
   const navigateToLogsFromDashboard = (nav: DashboardLogsNav) => {
-    setSelectedLevel(nav.level ?? "");
-    setStartDate(nav.startDate);
-    setEndDate(nav.endDate);
-    setRequestId("");
-    setWhereFilters([]);
-    setOffset(0);
-    switchView("logs");
+    const filters: LogsFilterState = {
+      projectId: selectedProject,
+      level: nav.level ?? "",
+      startDate: nav.startDate,
+      endDate: nav.endDate,
+      requestId: "",
+      where: [],
+      q: "",
+    };
+    applyLogsFilters(filters);
+    setActiveView("logs");
+    setSelectedLog(null);
+    navigatePath(pathForLogs(filters));
   };
 
   const navigateToIssueFromDashboard = (
@@ -466,6 +545,105 @@ function App() {
     setSelectedLog(null);
     navigatePath(pathForIssue(fingerprint, projectId));
   };
+
+  const handleLogPivotFilter = (action: LogPivotAction) => {
+    if (action.kind === "issue") {
+      navigateToIssueFromDashboard(action.fingerprint, action.projectId);
+      return;
+    }
+
+    let nextFilters = currentLogsFilters();
+
+    if (action.kind === "request_id") {
+      nextFilters = { ...nextFilters, requestId: action.value };
+    } else if (action.kind === "project") {
+      nextFilters = { ...nextFilters, projectId: action.projectId };
+    } else if (action.kind === "where") {
+      const where = nextFilters.where.includes(action.clause)
+        ? nextFilters.where
+        : [...nextFilters.where, action.clause];
+      nextFilters = { ...nextFilters, where };
+    }
+
+    applyLogsFilters(nextFilters);
+    setSelectedLog(null);
+    setActiveView("logs");
+    navigatePath(pathForLogs(nextFilters));
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || shareToken) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+
+      const key = event.key.toLowerCase();
+
+      if (key === "?" || (event.shiftKey && key === "/")) {
+        event.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+
+      if (shortcutsOpen) return;
+
+      if (selectedLog && key === "escape") {
+        // LogDetail already handles Escape; don't also navigate
+        return;
+      }
+
+      if (key === "/" && activeView === "logs" && !selectedLog) {
+        event.preventDefault();
+        const input = document.getElementById(
+          "filter-search"
+        ) as HTMLInputElement | null;
+        input?.focus();
+        input?.select();
+        return;
+      }
+
+      if (event.shiftKey) return;
+
+      const viewByKey: Record<string, AdminView> = {
+        "1": "dashboard",
+        d: "dashboard",
+        "2": "logs",
+        l: "logs",
+        "3": "issues",
+        i: "issues",
+        "4": "projects",
+        p: "projects",
+      };
+
+      const nextView = viewByKey[key];
+      if (nextView) {
+        event.preventDefault();
+        setShortcutsOpen(false);
+        switchView(nextView);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    isAuthenticated,
+    shareToken,
+    activeView,
+    selectedLog,
+    shortcutsOpen,
+    switchView,
+  ]);
+
+  const shortcutRows: ShortcutRow[] = [
+    { keys: ["1", "d"], description: "Go to Dashboard" },
+    { keys: ["2", "l"], description: "Go to Logs" },
+    { keys: ["3", "i"], description: "Go to Issues" },
+    { keys: ["4", "p"], description: "Go to Projects" },
+    { keys: ["/"], description: "Focus message search (Logs)" },
+    { keys: ["?"], description: "Toggle this shortcuts help" },
+    { keys: ["Esc"], description: "Close detail / dialog" },
+  ];
 
   const handleProjectCreated = () => {
     loadProjects();
@@ -545,6 +723,15 @@ function App() {
             <button
               type="button"
               className="btn btn-secondary btn-sm"
+              onClick={() => setShortcutsOpen(true)}
+              title="Keyboard shortcuts (?)"
+              aria-label="Keyboard shortcuts"
+            >
+              ?
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
               onClick={handleLogout}
             >
               Log out
@@ -589,6 +776,7 @@ function App() {
               startDate={startDate}
               endDate={endDate}
               requestId={requestId}
+              searchQuery={searchQuery}
               whereFilters={whereFilters}
               onProjectChange={(projectId) => {
                 setSelectedProject(projectId);
@@ -608,6 +796,10 @@ function App() {
               }}
               onRequestIdChange={(id) => {
                 setRequestId(id);
+                setOffset(0);
+              }}
+              onSearchQueryChange={(q) => {
+                setSearchQuery(q);
                 setOffset(0);
               }}
               onWhereFiltersChange={(filters) => {
@@ -648,7 +840,19 @@ function App() {
         </div>
       </main>
 
-      {selectedLog && <LogDetail log={selectedLog} onClose={closeLog} />}
+      {selectedLog && (
+        <LogDetail
+          log={selectedLog}
+          onClose={closeLog}
+          onPivotFilter={handleLogPivotFilter}
+        />
+      )}
+
+      <KeyboardShortcutsHelp
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+        shortcuts={shortcutRows}
+      />
     </div>
   );
 }

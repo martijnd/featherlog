@@ -87,6 +87,15 @@ function appendLogFilters(
     paramIndex++;
   }
 
+  const search =
+    typeof query.q === "string" ? query.q.trim() : "";
+  if (search) {
+    const escaped = search.replace(/([\\%_])/g, "\\$1");
+    nextSql += ` AND message ILIKE $${paramIndex} ESCAPE '\\'`;
+    nextParams.push(`%${escaped}%`);
+    paramIndex++;
+  }
+
   for (const clause of normalizeWhereParams(query.where)) {
     const filterObj = parseWhereClause(clause);
     if (!filterObj) continue;

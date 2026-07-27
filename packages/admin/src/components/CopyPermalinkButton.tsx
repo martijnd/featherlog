@@ -2,9 +2,13 @@ import { useState, type MouseEvent } from "react";
 
 interface CopyPermalinkButtonProps {
   url: string;
+  label?: string;
 }
 
-export default function CopyPermalinkButton({ url }: CopyPermalinkButtonProps) {
+export default function CopyPermalinkButton({
+  url,
+  label = "Copy link",
+}: CopyPermalinkButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   const handleCopy = async (e: MouseEvent) => {
@@ -30,7 +34,7 @@ export default function CopyPermalinkButton({ url }: CopyPermalinkButtonProps) {
         ? "Copied"
         : status === "failed"
           ? "Copy failed"
-          : "Copy link"}
+          : label}
     </button>
   );
 }

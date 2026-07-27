@@ -60,6 +60,8 @@ export interface LogsQueryParams {
   where?: string | string[];
   /** Convenience shorthand for where request_id=... */
   request_id?: string;
+  /** Case-insensitive substring match against log message */
+  q?: string;
   limit?: number;
   offset?: number;
 }

@@ -1,5 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Project } from "../api/client";
+import CopyPermalinkButton from "./CopyPermalinkButton";
+import {
+  hasActiveLogsFilters,
+  LogsFilterState,
+  logsViewPermalink,
+} from "../permalink";
 
 interface FilterBarProps {
   projects: Project[];
@@ -8,12 +14,14 @@ interface FilterBarProps {
   startDate: string;
   endDate: string;
   requestId: string;
+  searchQuery: string;
   whereFilters: string[];
   onProjectChange: (projectId: string) => void;
   onLevelChange: (level: string) => void;
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
   onRequestIdChange: (requestId: string) => void;
+  onSearchQueryChange: (q: string) => void;
   onWhereFiltersChange: (filters: string[]) => void;
   onClearFilters: () => void;
 }
@@ -25,17 +33,43 @@ export default function FilterBar({
   startDate,
   endDate,
   requestId,
+  searchQuery,
   whereFilters,
   onProjectChange,
   onLevelChange,
   onStartDateChange,
   onEndDateChange,
   onRequestIdChange,
+  onSearchQueryChange,
   onWhereFiltersChange,
   onClearFilters,
 }: FilterBarProps) {
   const [draft, setDraft] = useState("");
   const [filterHint, setFilterHint] = useState<string | null>(null);
+  const [searchDraft, setSearchDraft] = useState(searchQuery);
+
+  useEffect(() => {
+    setSearchDraft(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (searchDraft === searchQuery) return;
+    const timer = window.setTimeout(() => {
+      onSearchQueryChange(searchDraft.trim());
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchDraft, searchQuery, onSearchQueryChange]);
+
+  const filters: LogsFilterState = {
+    projectId: selectedProject,
+    level: (selectedLevel as LogsFilterState["level"]) || "",
+    startDate,
+    endDate,
+    requestId,
+    where: whereFilters,
+    q: searchQuery,
+  };
+  const filtersActive = hasActiveLogsFilters(filters);
 
   const addFilter = () => {
     const value = draft.trim();
@@ -57,6 +91,26 @@ export default function FilterBar({
   return (
     <div className="panel panel-pad u-mb-md">
       <div className="filter-grid">
+        <div className="filter-search">
+          <label className="form-label" htmlFor="filter-search">
+            Search message
+          </label>
+          <input
+            id="filter-search"
+            className="input"
+            type="search"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSearchQueryChange(searchDraft.trim());
+              }
+            }}
+            placeholder="checkout failed, stack overflow…"
+            spellCheck={false}
+          />
+        </div>
         <div>
           <label className="form-label" htmlFor="filter-project">
             Project
@@ -198,17 +252,27 @@ export default function FilterBar({
         <code>user.subscription=premium</code>
       </p>
 
-      <button
-        type="button"
-        className="btn btn-secondary"
-        onClick={() => {
-          setDraft("");
-          setFilterHint(null);
-          onClearFilters();
-        }}
-      >
-        Clear filters
-      </button>
+      <div className="filter-actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            setDraft("");
+            setSearchDraft("");
+            setFilterHint(null);
+            onClearFilters();
+          }}
+          disabled={!filtersActive}
+        >
+          Clear filters
+        </button>
+        {filtersActive && (
+          <CopyPermalinkButton
+            url={logsViewPermalink(filters)}
+            label="Copy view link"
+          />
+        )}
+      </div>
     </div>
   );
 }

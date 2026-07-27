@@ -5,6 +5,12 @@ import CopyPermalinkButton from "./CopyPermalinkButton";
 import { logPermalink } from "../permalink";
 import { levelBadgeClass } from "../ui";
 
+export type LogPivotAction =
+  | { kind: "request_id"; value: string }
+  | { kind: "where"; clause: string }
+  | { kind: "project"; projectId: string }
+  | { kind: "issue"; fingerprint: string; projectId: string };
+
 interface LogDetailProps {
   log: LogEntry;
   onClose: () => void;
@@ -12,6 +18,8 @@ interface LogDetailProps {
   variant?: "modal" | "page";
   /** When false, hide the share control (e.g. anonymous public viewers). */
   showShare?: boolean;
+  /** Pivot from a context field into a filtered logs view / issue. */
+  onPivotFilter?: (action: LogPivotAction) => void;
 }
 
 interface JsonViewerProps {
@@ -122,6 +130,7 @@ export default function LogDetail({
   onClose,
   variant = "modal",
   showShare = true,
+  onPivotFilter,
 }: LogDetailProps) {
   const isPage = variant === "page";
   const titleId = useId();
@@ -210,34 +219,105 @@ export default function LogDetail({
     (errorObj && typeof errorObj.stack === "string" && errorObj.stack) ||
     (typeof metadata.stack === "string" ? metadata.stack : null);
 
-  const contextRows: { label: string; value: string }[] = [];
-  const pushContext = (label: string, value: unknown) => {
+  type ContextRow = {
+    label: string;
+    value: string;
+    action?: LogPivotAction;
+  };
+
+  const contextRows: ContextRow[] = [];
+  const pushContext = (
+    label: string,
+    value: unknown,
+    action?: LogPivotAction
+  ) => {
     if (value === undefined || value === null || value === "") return;
     if (typeof value === "object") {
       contextRows.push({ label, value: JSON.stringify(value) });
     } else {
-      contextRows.push({ label, value: String(value) });
+      contextRows.push({ label, value: String(value), action });
     }
   };
 
-  pushContext("request_id", metadata.request_id);
-  pushContext("trace_id", metadata.trace_id);
-  pushContext("service", metadata.service);
-  pushContext("version", metadata.version);
-  pushContext("environment", metadata.environment);
-  pushContext("outcome", metadata.outcome);
-  pushContext("status_code", metadata.status_code);
-  pushContext("duration_ms", metadata.duration_ms);
-  pushContext("method", metadata.method);
-  pushContext("path", metadata.path);
+  const whereAction = (path: string, value: unknown): LogPivotAction | undefined => {
+    if (value === undefined || value === null || value === "") return undefined;
+    if (typeof value === "object") return undefined;
+    return { kind: "where", clause: `${path}=${String(value)}` };
+  };
+
+  pushContext(
+    "request_id",
+    metadata.request_id,
+    typeof metadata.request_id === "string" ||
+      typeof metadata.request_id === "number"
+      ? { kind: "request_id", value: String(metadata.request_id) }
+      : undefined
+  );
+  pushContext("trace_id", metadata.trace_id, whereAction("trace_id", metadata.trace_id));
+  pushContext("service", metadata.service, whereAction("service", metadata.service));
+  pushContext("version", metadata.version, whereAction("version", metadata.version));
+  pushContext(
+    "environment",
+    metadata.environment,
+    whereAction("environment", metadata.environment)
+  );
+  pushContext("outcome", metadata.outcome, whereAction("outcome", metadata.outcome));
+  pushContext(
+    "status_code",
+    metadata.status_code,
+    whereAction("status_code", metadata.status_code)
+  );
+  pushContext(
+    "duration_ms",
+    metadata.duration_ms,
+    whereAction("duration_ms", metadata.duration_ms)
+  );
+  pushContext("method", metadata.method, whereAction("method", metadata.method));
+  pushContext("path", metadata.path, whereAction("path", metadata.path));
   if (metadata.user && typeof metadata.user === "object") {
-    pushContext("user", metadata.user);
+    const user = metadata.user as Record<string, unknown>;
+    if (user.id !== undefined && user.id !== null) {
+      pushContext("user.id", user.id, whereAction("user.id", user.id));
+    } else {
+      pushContext("user", metadata.user);
+    }
   } else {
-    pushContext("user_id", metadata.user_id ?? metadata.userId);
+    pushContext(
+      "user_id",
+      metadata.user_id ?? metadata.userId,
+      whereAction("user_id", metadata.user_id ?? metadata.userId)
+    );
   }
   if (log.fingerprint) {
-    pushContext("fingerprint", log.fingerprint);
+    pushContext("fingerprint", log.fingerprint, {
+      kind: "issue",
+      fingerprint: log.fingerprint,
+      projectId: log["project-id"],
+    });
   }
+
+  const renderFilterableValue = (row: ContextRow) => {
+    if (!onPivotFilter || !row.action) {
+      return <code className="code-block">{row.value}</code>;
+    }
+    const title =
+      row.action.kind === "issue"
+        ? "Open issue"
+        : row.action.kind === "project"
+          ? "Filter by project"
+          : `Filter logs by ${row.label}`;
+    return (
+      <button
+        type="button"
+        className="context-filter-btn"
+        title={title}
+        onClick={() => onPivotFilter(row.action!)}
+      >
+        <code className="code-block">{row.value}</code>
+        <span className="context-filter-hint">Filter</span>
+      </button>
+    );
+  };
 
   return (
     <div
@@ -289,7 +369,24 @@ export default function LogDetail({
             <div className="meta-grid">
               <div className="meta-row">
                 <span className="meta-label">Project ID</span>
-                <code className="code-block">{log["project-id"]}</code>
+                {onPivotFilter ? (
+                  <button
+                    type="button"
+                    className="context-filter-btn"
+                    title="Filter by project"
+                    onClick={() =>
+                      onPivotFilter({
+                        kind: "project",
+                        projectId: log["project-id"],
+                      })
+                    }
+                  >
+                    <code className="code-block">{log["project-id"]}</code>
+                    <span className="context-filter-hint">Filter</span>
+                  </button>
+                ) : (
+                  <code className="code-block">{log["project-id"]}</code>
+                )}
               </div>
               <div className="meta-row">
                 <span className="meta-label">Timestamp</span>
@@ -320,7 +417,7 @@ export default function LogDetail({
               {contextRows.map((row) => (
                 <div key={row.label}>
                   <div className="context-item-label">{row.label}</div>
-                  <code className="code-block">{row.value}</code>
+                  {renderFilterableValue(row)}
                 </div>
               ))}
             </div>
