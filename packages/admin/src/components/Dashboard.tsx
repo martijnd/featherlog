@@ -20,6 +20,22 @@ import {
 import { chartColors, levelBadgeClass } from "../ui";
 import { flashLevelClass, flashRowClass, useArriveFlash } from "../useArriveFlash";
 import RelativeTime from "./RelativeTime";
+import SortableTh, {
+  SortState,
+  createSortHandler,
+} from "./SortableTh";
+
+type IssueSortKey = "message" | "count" | "last_seen";
+type ErrorSortKey = "message" | "time";
+
+const ISSUE_SORT_DEFAULTS: Partial<Record<IssueSortKey, "asc" | "desc">> = {
+  count: "desc",
+  last_seen: "desc",
+};
+
+const ERROR_SORT_DEFAULTS: Partial<Record<ErrorSortKey, "asc" | "desc">> = {
+  time: "desc",
+};
 
 export interface DashboardLogsNav {
   level?: "" | "error" | "warn" | "info";
@@ -122,7 +138,21 @@ export default function Dashboard({
   const [flashingIssues, setFlashingIssues] = useState<Set<string>>(
     () => new Set()
   );
+  const [issueSort, setIssueSort] = useState<SortState<IssueSortKey>>({
+    key: "last_seen",
+    dir: "desc",
+  });
+  const [errorSort, setErrorSort] = useState<SortState<ErrorSortKey>>({
+    key: "time",
+    dir: "desc",
+  });
+  const handleIssueSort = createSortHandler(setIssueSort, ISSUE_SORT_DEFAULTS);
+  const handleErrorSort = createSortHandler(setErrorSort, ERROR_SORT_DEFAULTS);
   const issueFlashTimers = useRef<Map<string, number>>(new Map());
+  const issueSortRef = useRef(issueSort);
+  const errorSortRef = useRef(errorSort);
+  issueSortRef.current = issueSort;
+  errorSortRef.current = errorSort;
   const recentErrorIds = useMemo(
     () => recentErrors.map((log) => log.id),
     [recentErrors]
@@ -180,9 +210,13 @@ export default function Dashboard({
         const issuesParams: {
           "project-id"?: string;
           status: "open";
+          sort: string;
+          order: "asc" | "desc";
           limit: number;
         } = {
           status: "open",
+          sort: issueSort.key === "message" ? "issue" : issueSort.key,
+          order: issueSort.dir,
           limit: TOP_ISSUES_LIMIT,
         };
         if (selectedProject) issuesParams["project-id"] = selectedProject;
@@ -191,10 +225,14 @@ export default function Dashboard({
           "project-id"?: string;
           level: "error";
           startDate: string;
+          sort: string;
+          order: "asc" | "desc";
           limit: number;
         } = {
           level: "error",
           startDate: statsResponse.startDate,
+          sort: errorSort.key === "time" ? "timestamp" : errorSort.key,
+          order: errorSort.dir,
           limit: RECENT_ERRORS_LIMIT,
         };
         if (selectedProject) logsParams["project-id"] = selectedProject;
@@ -228,7 +266,7 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [selectedProject, range]);
+  }, [selectedProject, range, issueSort, errorSort]);
 
   useEffect(() => {
     if (!liveEvent) return;
@@ -290,53 +328,59 @@ export default function Dashboard({
     });
 
     if (log.level === "error") {
-      setRecentErrors((prev) => {
-        if (prev.some((entry) => entry.id === log.id)) return prev;
-        return [log, ...prev].slice(0, RECENT_ERRORS_LIMIT);
-      });
+      const errorSort = errorSortRef.current;
+      if (errorSort.key === "time" && errorSort.dir === "desc") {
+        setRecentErrors((prev) => {
+          if (prev.some((entry) => entry.id === log.id)) return prev;
+          return [log, ...prev].slice(0, RECENT_ERRORS_LIMIT);
+        });
+      }
     }
 
     if (log.fingerprint) {
       flashIssue(log.fingerprint);
-      setIssues((prev) => {
-        const existingIdx = prev.findIndex(
-          (issue) =>
-            issue.fingerprint === log.fingerprint &&
-            issue["project-id"] === log["project-id"]
-        );
+      const issueSort = issueSortRef.current;
+      if (issueSort.key === "last_seen" && issueSort.dir === "desc") {
+        setIssues((prev) => {
+          const existingIdx = prev.findIndex(
+            (issue) =>
+              issue.fingerprint === log.fingerprint &&
+              issue["project-id"] === log["project-id"]
+          );
 
-        if (existingIdx >= 0) {
-          const existing = prev[existingIdx];
-          const updated: Issue = {
-            ...existing,
+          if (existingIdx >= 0) {
+            const existing = prev[existingIdx];
+            const updated: Issue = {
+              ...existing,
+              level: log.level,
+              message: log.message,
+              count: existing.count + 1,
+              last_seen: log.timestamp,
+              latest_metadata: log.metadata || {},
+              status: "open",
+              resolved_at: null,
+            };
+            return [
+              updated,
+              ...prev.filter((_, i) => i !== existingIdx),
+            ].slice(0, TOP_ISSUES_LIMIT);
+          }
+
+          const created: Issue = {
+            fingerprint: log.fingerprint!,
+            "project-id": log["project-id"],
             level: log.level,
             message: log.message,
-            count: existing.count + 1,
+            count: 1,
+            first_seen: log.timestamp,
             last_seen: log.timestamp,
             latest_metadata: log.metadata || {},
             status: "open",
             resolved_at: null,
           };
-          return [
-            updated,
-            ...prev.filter((_, i) => i !== existingIdx),
-          ].slice(0, TOP_ISSUES_LIMIT);
-        }
-
-        const created: Issue = {
-          fingerprint: log.fingerprint!,
-          "project-id": log["project-id"],
-          level: log.level,
-          message: log.message,
-          count: 1,
-          first_seen: log.timestamp,
-          last_seen: log.timestamp,
-          latest_metadata: log.metadata || {},
-          status: "open",
-          resolved_at: null,
-        };
-        return [created, ...prev].slice(0, TOP_ISSUES_LIMIT);
-      });
+          return [created, ...prev].slice(0, TOP_ISSUES_LIMIT);
+        });
+      }
     }
   }, [liveEvent, selectedProject]);
 
@@ -596,9 +640,26 @@ export default function Dashboard({
             <table className="data-table table-compact">
               <thead>
                 <tr>
-                  <th>Message</th>
-                  <th className="col-count">Count</th>
-                  <th className="col-time">Last seen</th>
+                  <SortableTh
+                    label="Message"
+                    column="message"
+                    sort={issueSort}
+                    onSort={handleIssueSort}
+                  />
+                  <SortableTh
+                    label="Count"
+                    column="count"
+                    sort={issueSort}
+                    onSort={handleIssueSort}
+                    className="col-count"
+                  />
+                  <SortableTh
+                    label="Last seen"
+                    column="last_seen"
+                    sort={issueSort}
+                    onSort={handleIssueSort}
+                    className="col-time"
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -679,8 +740,19 @@ export default function Dashboard({
             <table className="data-table table-compact">
               <thead>
                 <tr>
-                  <th>Message</th>
-                  <th className="col-time">Time</th>
+                  <SortableTh
+                    label="Message"
+                    column="message"
+                    sort={errorSort}
+                    onSort={handleErrorSort}
+                  />
+                  <SortableTh
+                    label="Time"
+                    column="time"
+                    sort={errorSort}
+                    onSort={handleErrorSort}
+                    className="col-time"
+                  />
                 </tr>
               </thead>
               <tbody>

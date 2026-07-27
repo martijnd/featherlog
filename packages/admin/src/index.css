@@ -773,6 +773,46 @@ button.badge-count {
   box-shadow: 0 1px 0 var(--border);
 }
 
+.data-table th.th-sortable {
+  padding: 0;
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.65rem 1rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.th-sort:hover,
+.th-sort.is-active {
+  color: var(--text);
+}
+
+.th-sort-indicator {
+  font-size: 10px;
+  opacity: 0.35;
+  line-height: 1;
+}
+
+.th-sort.is-active .th-sort-indicator {
+  opacity: 0.85;
+}
+
+.th-sort:hover .th-sort-indicator {
+  opacity: 0.7;
+}
+
 .data-table td {
   padding: 0.75rem 1rem;
   font-size: 13px;

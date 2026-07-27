@@ -18,8 +18,25 @@ import { issuePermalink } from "../permalink";
 import { issueStatusBadgeClass, levelBadgeClass } from "../ui";
 import RelativeTime from "./RelativeTime";
 import { flashLevelClass } from "../useArriveFlash";
+import SortableTh, {
+  SortState,
+  createSortHandler,
+} from "./SortableTh";
 
 type StatusFilter = IssueStatus | "all";
+type IssueSortKey =
+  | "issue"
+  | "status"
+  | "project"
+  | "count"
+  | "first_seen"
+  | "last_seen";
+
+const ISSUE_SORT_DEFAULTS: Partial<Record<IssueSortKey, "asc" | "desc">> = {
+  count: "desc",
+  first_seen: "desc",
+  last_seen: "desc",
+};
 
 interface IssuesListProps {
   projects: Project[];
@@ -64,11 +81,21 @@ export default function IssuesList({
   const [flashingIssues, setFlashingIssues] = useState<Set<string>>(
     () => new Set()
   );
+  const [sort, setSort] = useState<SortState<IssueSortKey>>({
+    key: "last_seen",
+    dir: "desc",
+  });
+  const handleSort = createSortHandler((updater) => {
+    setSort(updater);
+    setOffset(0);
+  }, ISSUE_SORT_DEFAULTS);
   const limit = 50;
   const lastLiveSeq = useRef<number | null>(null);
   const flashTimers = useRef<Map<string, number>>(new Map());
   const issuesRef = useRef(issues);
   issuesRef.current = issues;
+  const sortRef = useRef(sort);
+  sortRef.current = sort;
 
   const flashIssueRow = (key: string) => {
     const existing = flashTimers.current.get(key);
@@ -95,7 +122,7 @@ export default function IssuesList({
 
   useEffect(() => {
     void loadIssues();
-  }, [selectedProject, offset, statusFilter]);
+  }, [selectedProject, offset, statusFilter, sort]);
 
   useEffect(() => {
     setOffset(0);
@@ -130,6 +157,9 @@ export default function IssuesList({
     if (selectedProject && log["project-id"] !== selectedProject) return;
     // Only mutate the first page so pagination stays coherent
     if (offset !== 0) return;
+    // Live reorder only matches default recency sort
+    const sort = sortRef.current;
+    if (sort.key !== "last_seen" || sort.dir !== "desc") return;
 
     const fingerprint = log.fingerprint;
     const projectId = log["project-id"];
@@ -195,10 +225,14 @@ export default function IssuesList({
       const params: {
         "project-id"?: string;
         status: StatusFilter;
+        sort: IssueSortKey;
+        order: "asc" | "desc";
         limit: number;
         offset: number;
       } = {
         status: statusFilter,
+        sort: sort.key,
+        order: sort.dir,
         limit,
         offset,
       };
@@ -336,12 +370,42 @@ export default function IssuesList({
             <table className="data-table hide-dates">
               <thead>
                 <tr>
-                  <th>Issue</th>
-                  <th>Status</th>
-                  <th>Project</th>
-                  <th>Count</th>
-                  <th>First seen</th>
-                  <th>Last seen</th>
+                  <SortableTh
+                    label="Issue"
+                    column="issue"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="Status"
+                    column="status"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="Project"
+                    column="project"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="Count"
+                    column="count"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="First seen"
+                    column="first_seen"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="Last seen"
+                    column="last_seen"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
                 </tr>
               </thead>
               <tbody>

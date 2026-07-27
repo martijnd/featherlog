@@ -62,6 +62,10 @@ export interface LogsQueryParams {
   request_id?: string;
   /** Case-insensitive substring match against log message */
   q?: string;
+  /** Sort column: timestamp | project | level | message | metadata */
+  sort?: string;
+  /** Sort direction: asc | desc */
+  order?: string;
   limit?: number;
   offset?: number;
 }

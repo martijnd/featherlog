@@ -48,6 +48,47 @@ function normalizeWhereParams(
   );
 }
 
+const LOG_SORT_SQL: Record<string, string> = {
+  timestamp: "timestamp",
+  project: "project_id",
+  level: "level",
+  message: "message",
+  metadata:
+    "(SELECT count(*)::int FROM jsonb_object_keys(COALESCE(metadata, '{}'::jsonb)))",
+};
+
+const ISSUE_SORT_SQL: Record<string, string> = {
+  issue: "agg.message",
+  status: "COALESCE(s.status, 'open')",
+  project: "agg.project_id",
+  count: "agg.count",
+  first_seen: "agg.first_seen",
+  last_seen: "agg.last_seen",
+};
+
+function parseSortOrder(value: unknown): "ASC" | "DESC" {
+  return value === "asc" || value === "ASC" ? "ASC" : "DESC";
+}
+
+function buildLogOrderBy(sort: unknown, order: unknown): string {
+  const column =
+    typeof sort === "string" && LOG_SORT_SQL[sort]
+      ? LOG_SORT_SQL[sort]
+      : LOG_SORT_SQL.timestamp;
+  const dir = parseSortOrder(order);
+  // Stable tie-breaker for pagination
+  return ` ORDER BY ${column} ${dir}, id DESC`;
+}
+
+function buildIssueOrderBy(sort: unknown, order: unknown): string {
+  const column =
+    typeof sort === "string" && ISSUE_SORT_SQL[sort]
+      ? ISSUE_SORT_SQL[sort]
+      : ISSUE_SORT_SQL.last_seen;
+  const dir = parseSortOrder(order);
+  return ` ORDER BY ${column} ${dir}, agg.fingerprint ASC`;
+}
+
 function appendLogFilters(
   sql: string,
   params: unknown[],
@@ -245,7 +286,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
     const query: LogsQueryParams = req.query as any;
 
     const filtered = appendLogFilters("SELECT * FROM logs WHERE 1=1", [], query);
-    let sql = filtered.sql + " ORDER BY timestamp DESC";
+    let sql = filtered.sql + buildLogOrderBy(query.sort, query.order);
     const params = [...filtered.params];
 
     const limit = query.limit ? parseInt(query.limit.toString(), 10) : 100;
@@ -472,6 +513,8 @@ router.get(
       const query = req.query as {
         "project-id"?: string;
         status?: string;
+        sort?: string;
+        order?: string;
         limit?: string;
         offset?: string;
       };
@@ -527,7 +570,7 @@ router.get(
         LEFT JOIN issue_states s
           ON s.project_id = agg.project_id AND s.fingerprint = agg.fingerprint
         ${statusWhere}
-        ORDER BY agg.last_seen DESC
+        ${buildIssueOrderBy(query.sort, query.order)}
       `;
 
       const limit = query.limit ? parseInt(query.limit.toString(), 10) : 50;

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { apiClient, LogEntry, Project } from "./api/client";
 import Login from "./components/Login";
 import FilterBar from "./components/FilterBar";
-import LogsTable from "./components/LogsTable";
+import LogsTable, { LogSortKey } from "./components/LogsTable";
 import LogDetail, { LogPivotAction } from "./components/LogDetail";
 import CreateProject from "./components/CreateProject";
 import ProjectsManager from "./components/ProjectsManager";
@@ -26,7 +26,7 @@ import {
   pathForLogs,
   pathForView,
 } from "./permalink";
-
+import { SortState } from "./components/SortableTh";
 function App() {
   const initialRoute = parseAdminRoute(
     window.location.pathname,
@@ -73,6 +73,14 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [whereFilters, setWhereFilters] = useState<string[]>([]);
   const [offset, setOffset] = useState(0);
+  const [logSort, setLogSort] = useState<SortState<LogSortKey>>({
+    key: "timestamp",
+    dir: "desc",
+  });
+  const logSortRef = useRef(logSort);
+  logSortRef.current = logSort;
+  const offsetRef = useRef(offset);
+  offsetRef.current = offset;
   const limit = 50;
 
   const showToast = useCallback(
@@ -270,6 +278,7 @@ function App() {
     whereFilters,
     searchQuery,
     offset,
+    logSort,
     isRealtime,
   ]);
 
@@ -285,11 +294,18 @@ function App() {
       const eventSource = apiClient.createLogStream(
         (newLog: LogEntry) => {
           if (matchesFilters(newLog)) {
-            setLogs((prevLogs) => {
-              const updatedLogs = [newLog, ...prevLogs];
-              return updatedLogs.slice(0, limit);
-            });
-            setTotal((prevTotal) => prevTotal + 1);
+            const sort = logSortRef.current;
+            const canLivePrepend =
+              offsetRef.current === 0 &&
+              sort.key === "timestamp" &&
+              sort.dir === "desc";
+            if (canLivePrepend) {
+              setLogs((prevLogs) => {
+                const updatedLogs = [newLog, ...prevLogs];
+                return updatedLogs.slice(0, limit);
+              });
+              setTotal((prevTotal) => prevTotal + 1);
+            }
           }
 
           setDashboardLiveEvent((prev) => ({
@@ -393,6 +409,8 @@ function App() {
       const params: any = {
         limit,
         offset,
+        sort: logSort.key,
+        order: logSort.dir,
       };
 
       if (selectedProject) params["project-id"] = selectedProject;
@@ -810,6 +828,11 @@ function App() {
               total={total}
               limit={limit}
               offset={offset}
+              sort={logSort}
+              onSortChange={(next) => {
+                setLogSort(next);
+                setOffset(0);
+              }}
               onPageChange={setOffset}
               onLogClick={openLog}
             />

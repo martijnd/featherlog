@@ -4,6 +4,10 @@ import { formatRelativeDate } from "../time";
 import { levelBadgeClass } from "../ui";
 import { flashLevelClass, useArriveFlash } from "../useArriveFlash";
 import RelativeTime from "./RelativeTime";
+import SortableTh, {
+  SortState,
+  createSortHandler,
+} from "./SortableTh";
 
 interface GroupedLogEntry extends LogEntry {
   count: number;
@@ -11,17 +15,26 @@ interface GroupedLogEntry extends LogEntry {
   occurrences: LogEntry[];
 }
 
+export type LogSortKey = "timestamp" | "project" | "level" | "message" | "metadata";
+
 interface LogsTableProps {
   logs: LogEntry[];
   loading: boolean;
   total: number;
   limit: number;
   offset: number;
+  sort: SortState<LogSortKey>;
+  onSortChange: (sort: SortState<LogSortKey>) => void;
   onPageChange: (offset: number) => void;
   onLogClick?: (log: LogEntry) => void;
 }
 
 const MAX_VISIBLE_OCCURRENCES = 10;
+
+const LOG_SORT_DEFAULTS: Partial<Record<LogSortKey, "asc" | "desc">> = {
+  timestamp: "desc",
+  metadata: "desc",
+};
 
 export default function LogsTable({
   logs,
@@ -29,10 +42,16 @@ export default function LogsTable({
   total,
   limit,
   offset,
+  sort,
+  onSortChange,
   onPageChange,
   onLogClick,
 }: LogsTableProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const handleSort = createSortHandler(
+    (updater) => onSortChange(updater(sort)),
+    LOG_SORT_DEFAULTS
+  );
   const logIds = useMemo(() => logs.map((log) => log.id), [logs]);
   const flashing = useArriveFlash(logIds);
 
@@ -60,13 +79,8 @@ export default function LogsTable({
     };
   };
 
-  const groupLogs = (logs: LogEntry[]): (LogEntry | GroupedLogEntry)[] => {
-    const sortedLogs = [...logs].sort((a, b) => {
-      const aTime = new Date(a.timestamp).getTime();
-      const bTime = new Date(b.timestamp).getTime();
-      return bTime - aTime;
-    });
-
+  /** Preserve server order; only collapse consecutive identical rows. */
+  const groupLogs = (entries: LogEntry[]): (LogEntry | GroupedLogEntry)[] => {
     const result: (LogEntry | GroupedLogEntry)[] = [];
     let currentGroup: LogEntry[] = [];
     let currentGroupKey: string | null = null;
@@ -80,7 +94,7 @@ export default function LogsTable({
       }
     };
 
-    sortedLogs.forEach((log) => {
+    for (const log of entries) {
       const groupKey = getGroupKey(log);
 
       if (currentGroupKey === groupKey) {
@@ -90,14 +104,14 @@ export default function LogsTable({
         currentGroup = [log];
         currentGroupKey = groupKey;
       }
-    });
+    }
 
     finalizeGroup(currentGroup);
-
     return result;
   };
 
-  const groupedLogs = groupLogs(logs);
+  const groupedLogs = useMemo(() => groupLogs(logs), [logs]);
+
   const isGrouped = (
     log: LogEntry | GroupedLogEntry
   ): log is GroupedLogEntry => {
@@ -131,11 +145,36 @@ export default function LogsTable({
           <table className="data-table hide-secondary">
             <thead>
               <tr>
-                <th>Timestamp</th>
-                <th>Project</th>
-                <th>Level</th>
-                <th>Message</th>
-                <th>Metadata</th>
+                <SortableTh
+                  label="Timestamp"
+                  column="timestamp"
+                  sort={sort}
+                  onSort={handleSort}
+                />
+                <SortableTh
+                  label="Project"
+                  column="project"
+                  sort={sort}
+                  onSort={handleSort}
+                />
+                <SortableTh
+                  label="Level"
+                  column="level"
+                  sort={sort}
+                  onSort={handleSort}
+                />
+                <SortableTh
+                  label="Message"
+                  column="message"
+                  sort={sort}
+                  onSort={handleSort}
+                />
+                <SortableTh
+                  label="Metadata"
+                  column="metadata"
+                  sort={sort}
+                  onSort={handleSort}
+                />
               </tr>
             </thead>
             <tbody>

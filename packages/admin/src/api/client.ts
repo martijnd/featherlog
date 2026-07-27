@@ -181,6 +181,8 @@ class ApiClient {
       request_id?: string;
       q?: string;
       where?: string[];
+      sort?: string;
+      order?: "asc" | "desc";
       limit?: number;
       offset?: number;
     } = {}
@@ -198,6 +200,8 @@ class ApiClient {
         queryParams.append("where", clause);
       }
     }
+    if (params.sort) queryParams.append("sort", params.sort);
+    if (params.order) queryParams.append("order", params.order);
     if (params.limit) queryParams.append("limit", params.limit.toString());
     if (params.offset) queryParams.append("offset", params.offset.toString());
 
@@ -234,6 +238,8 @@ class ApiClient {
     params: {
       "project-id"?: string;
       status?: IssueStatus | "all";
+      sort?: string;
+      order?: "asc" | "desc";
       limit?: number;
       offset?: number;
     } = {}
@@ -242,6 +248,8 @@ class ApiClient {
     if (params["project-id"])
       queryParams.append("project-id", params["project-id"]);
     if (params.status) queryParams.append("status", params.status);
+    if (params.sort) queryParams.append("sort", params.sort);
+    if (params.order) queryParams.append("order", params.order);
     if (params.limit) queryParams.append("limit", params.limit.toString());
     if (params.offset) queryParams.append("offset", params.offset.toString());
 
