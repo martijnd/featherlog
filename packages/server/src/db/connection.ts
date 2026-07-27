@@ -116,5 +116,18 @@ export async function initDatabase() {
     WHERE fingerprint IS NOT NULL
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS issue_states (
+      project_id VARCHAR(255) NOT NULL,
+      fingerprint VARCHAR(64) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'open',
+      resolved_at TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (project_id, fingerprint),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      CHECK (status IN ('open', 'resolved'))
+    )
+  `);
+
   console.log("Database initialized");
 }

@@ -171,17 +171,32 @@ router.get("/:token", async (req, res: Response) => {
     if (share.resource_type === "issue") {
       const issueResult = await pool.query(
         `SELECT
-          fingerprint,
-          project_id,
-          (array_agg(level ORDER BY timestamp DESC))[1] AS level,
-          (array_agg(message ORDER BY timestamp DESC))[1] AS message,
-          COUNT(*)::int AS count,
-          MIN(timestamp) AS first_seen,
-          MAX(timestamp) AS last_seen,
-          (array_agg(metadata ORDER BY timestamp DESC))[1] AS latest_metadata
-        FROM logs
-        WHERE fingerprint = $1 AND project_id = $2
-        GROUP BY fingerprint, project_id`,
+          agg.fingerprint,
+          agg.project_id,
+          agg.level,
+          agg.message,
+          agg.count,
+          agg.first_seen,
+          agg.last_seen,
+          agg.latest_metadata,
+          COALESCE(s.status, 'open') AS status,
+          s.resolved_at
+        FROM (
+          SELECT
+            fingerprint,
+            project_id,
+            (array_agg(level ORDER BY timestamp DESC))[1] AS level,
+            (array_agg(message ORDER BY timestamp DESC))[1] AS message,
+            COUNT(*)::int AS count,
+            MIN(timestamp) AS first_seen,
+            MAX(timestamp) AS last_seen,
+            (array_agg(metadata ORDER BY timestamp DESC))[1] AS latest_metadata
+          FROM logs
+          WHERE fingerprint = $1 AND project_id = $2
+          GROUP BY fingerprint, project_id
+        ) agg
+        LEFT JOIN issue_states s
+          ON s.project_id = agg.project_id AND s.fingerprint = agg.fingerprint`,
         [share.fingerprint, share.project_id]
       );
 
@@ -211,6 +226,8 @@ router.get("/:token", async (req, res: Response) => {
           first_seen: row.first_seen,
           last_seen: row.last_seen,
           latest_metadata: row.latest_metadata || {},
+          status: row.status,
+          resolved_at: row.resolved_at,
         },
         logs: logsResult.rows.map(mapLogRow),
       });

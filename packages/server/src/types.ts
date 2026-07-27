@@ -8,6 +8,8 @@ export interface LogEntry {
   fingerprint?: string | null;
 }
 
+export type IssueStatus = 'open' | 'resolved';
+
 export interface Issue {
   fingerprint: string;
   project_id: string;
@@ -17,6 +19,8 @@ export interface Issue {
   first_seen: Date;
   last_seen: Date;
   latest_metadata: Record<string, any>;
+  status: IssueStatus;
+  resolved_at: Date | null;
 }
 
 export interface LogRequest {

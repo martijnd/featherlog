@@ -1,9 +1,17 @@
-import { Fragment, useEffect, useState } from "react";
-import { apiClient, Issue, LogEntry, Project } from "../api/client";
+import { Fragment, useEffect, useState, type MouseEvent } from "react";
+import {
+  apiClient,
+  Issue,
+  IssueStatus,
+  LogEntry,
+  Project,
+} from "../api/client";
 import ShareLinkPanel from "./ShareLinkPanel";
 import CopyPermalinkButton from "./CopyPermalinkButton";
 import { issuePermalink } from "../permalink";
-import { levelBadgeClass } from "../ui";
+import { issueStatusBadgeClass, levelBadgeClass } from "../ui";
+
+type StatusFilter = IssueStatus | "all";
 
 interface IssuesListProps {
   projects: Project[];
@@ -34,6 +42,8 @@ export default function IssuesList({
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [expandedFingerprint, setExpandedFingerprint] = useState<string | null>(
     null
   );
@@ -43,7 +53,7 @@ export default function IssuesList({
 
   useEffect(() => {
     loadIssues();
-  }, [selectedProject, offset, refreshKey]);
+  }, [selectedProject, offset, refreshKey, statusFilter]);
 
   useEffect(() => {
     setOffset(0);
@@ -71,7 +81,12 @@ export default function IssuesList({
   useEffect(() => {
     if (!expandedFingerprint) return;
     const issue = issues.find((i) => i.fingerprint === expandedFingerprint);
-    if (!issue) return;
+    if (!issue) {
+      setExpandedFingerprint(null);
+      setOccurrences([]);
+      onExpandedIssueChange?.(null);
+      return;
+    }
 
     let cancelled = false;
     setOccurrencesLoading(true);
@@ -100,7 +115,13 @@ export default function IssuesList({
   const loadIssues = async () => {
     setLoading(true);
     try {
-      const params: { "project-id"?: string; limit: number; offset: number } = {
+      const params: {
+        "project-id"?: string;
+        status: StatusFilter;
+        limit: number;
+        offset: number;
+      } = {
+        status: statusFilter,
         limit,
         offset,
       };
@@ -140,6 +161,27 @@ export default function IssuesList({
       setOccurrences([]);
     } finally {
       setOccurrencesLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (
+    issue: Issue,
+    status: IssueStatus,
+    e: MouseEvent
+  ) => {
+    e.stopPropagation();
+    setStatusUpdating(issue.fingerprint);
+    try {
+      await apiClient.updateIssueStatus(
+        issue.fingerprint,
+        issue["project-id"],
+        status
+      );
+      await loadIssues();
+    } catch (error) {
+      console.error("Failed to update issue status:", error);
+    } finally {
+      setStatusUpdating(null);
     }
   };
 
@@ -184,6 +226,21 @@ export default function IssuesList({
             ))}
           </select>
         </label>
+        <label className="form-row">
+          <span className="form-inline-label">Status</span>
+          <select
+            className="select select-inline"
+            value={statusFilter}
+            onChange={(e) => {
+              setOffset(0);
+              setStatusFilter(e.target.value as StatusFilter);
+            }}
+          >
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+            <option value="all">All</option>
+          </select>
+        </label>
         <span className="u-text-sm u-text-muted u-hide-sm">
           Grouped by fingerprint from <code>logger.capture()</code>
         </span>
@@ -194,8 +251,17 @@ export default function IssuesList({
           <div className="empty-state">Loading…</div>
         ) : issues.length === 0 ? (
           <div className="empty-state">
-            No issues yet. Use <code>logger.capture(error)</code> to create
-            fingerprinted issues.
+            {statusFilter === "resolved"
+              ? "No resolved issues."
+              : statusFilter === "open"
+                ? "No open issues. Use "
+                : "No issues yet. Use "}
+            {statusFilter !== "resolved" && (
+              <>
+                <code>logger.capture(error)</code> to create fingerprinted
+                issues.
+              </>
+            )}
           </div>
         ) : (
           <div className="table-scroll">
@@ -203,6 +269,7 @@ export default function IssuesList({
             <thead>
               <tr>
                 <th>Issue</th>
+                <th>Status</th>
                 <th>Project</th>
                 <th>Count</th>
                 <th>First seen</th>
@@ -212,8 +279,9 @@ export default function IssuesList({
             <tbody>
               {issues.map((issue) => {
                 const isExpanded = expandedFingerprint === issue.fingerprint;
+                const updating = statusUpdating === issue.fingerprint;
                 return (
-                  <Fragment key={issue.fingerprint}>
+                  <Fragment key={`${issue["project-id"]}-${issue.fingerprint}`}>
                     <tr
                       className="is-clickable"
                       onClick={() => toggleIssue(issue)}
@@ -239,6 +307,11 @@ export default function IssuesList({
                           </div>
                         </div>
                       </td>
+                      <td>
+                        <span className={issueStatusBadgeClass(issue.status)}>
+                          {issue.status}
+                        </span>
+                      </td>
                       <td>{issue["project-id"]}</td>
                       <td>
                         <span className="badge-count">{issue.count}</span>
@@ -253,7 +326,7 @@ export default function IssuesList({
                     {isExpanded && (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           style={{
                             padding: "0 1rem 1rem",
                             background: "var(--surface-muted)",
@@ -263,6 +336,29 @@ export default function IssuesList({
                             <div className="nested-panel-header">
                               <span>Recent occurrences</span>
                               <div className="u-flex-center u-gap-sm">
+                                {issue.status === "resolved" ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    disabled={updating}
+                                    onClick={(e) =>
+                                      handleStatusChange(issue, "open", e)
+                                    }
+                                  >
+                                    {updating ? "…" : "Reopen"}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    disabled={updating}
+                                    onClick={(e) =>
+                                      handleStatusChange(issue, "resolved", e)
+                                    }
+                                  >
+                                    {updating ? "…" : "Resolve"}
+                                  </button>
+                                )}
                                 <CopyPermalinkButton
                                   url={issuePermalink(
                                     issue.fingerprint,

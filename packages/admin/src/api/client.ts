@@ -9,6 +9,8 @@ export interface LogEntry {
   timestamp: string;
   metadata: Record<string, any>;
   fingerprint?: string | null;
+  /** Present on live SSE when ingest auto-reopened a resolved issue */
+  reopened?: boolean;
 }
 
 export interface LogsResponse {
@@ -17,6 +19,8 @@ export interface LogsResponse {
   limit: number;
   offset: number;
 }
+
+export type IssueStatus = "open" | "resolved";
 
 export interface Issue {
   fingerprint: string;
@@ -27,6 +31,8 @@ export interface Issue {
   first_seen: string;
   last_seen: string;
   latest_metadata: Record<string, any>;
+  status: IssueStatus;
+  resolved_at: string | null;
 }
 
 export interface IssuesResponse {
@@ -216,6 +222,7 @@ class ApiClient {
   async getIssues(
     params: {
       "project-id"?: string;
+      status?: IssueStatus | "all";
       limit?: number;
       offset?: number;
     } = {}
@@ -223,12 +230,32 @@ class ApiClient {
     const queryParams = new URLSearchParams();
     if (params["project-id"])
       queryParams.append("project-id", params["project-id"]);
+    if (params.status) queryParams.append("status", params.status);
     if (params.limit) queryParams.append("limit", params.limit.toString());
     if (params.offset) queryParams.append("offset", params.offset.toString());
 
     const qs = queryParams.toString();
     return this.request<IssuesResponse>(
       `/api/logs/issues${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async updateIssueStatus(
+    fingerprint: string,
+    projectId: string,
+    status: IssueStatus
+  ): Promise<{
+    fingerprint: string;
+    "project-id": string;
+    status: IssueStatus;
+    resolved_at: string | null;
+  }> {
+    return this.request(
+      `/api/logs/issues/${encodeURIComponent(fingerprint)}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ "project-id": projectId, status }),
+      }
     );
   }
 

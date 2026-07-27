@@ -6,7 +6,7 @@ import {
   SharePayload,
 } from "../api/client";
 import LogDetail from "./LogDetail";
-import { levelBadgeClass } from "../ui";
+import { issueStatusBadgeClass, levelBadgeClass } from "../ui";
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString(undefined, {
@@ -49,6 +49,9 @@ function IssueShareDetail({
         >
           <span className={levelBadgeClass(issue.level)}>
             {getErrorName(issue)}
+          </span>
+          <span className={issueStatusBadgeClass(issue.status)}>
+            {issue.status}
           </span>
           <span className="u-text-sm u-text-muted">
             {issue.count} occurrence{issue.count === 1 ? "" : "s"} · project{" "}

@@ -194,6 +194,22 @@ router.post("/", async (req: Request, res: Response) => {
 
     const newLog = insertResult.rows[0];
 
+    let reopened = false;
+    if (fingerprint) {
+      const reopenResult = await pool.query(
+        `UPDATE issue_states
+         SET status = 'open',
+             resolved_at = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE project_id = $1
+           AND fingerprint = $2
+           AND status = 'resolved'
+         RETURNING project_id`,
+        [projectId, fingerprint]
+      );
+      reopened = reopenResult.rows.length > 0;
+    }
+
     // Broadcast the new log to all connected SSE clients
     logBroadcaster.broadcastLog({
       id: newLog.id,
@@ -203,9 +219,10 @@ router.post("/", async (req: Request, res: Response) => {
       timestamp: newLog.timestamp,
       metadata: newLog.metadata,
       fingerprint: newLog.fingerprint,
+      ...(reopened ? { reopened: true } : {}),
     });
 
-    res.status(201).json({ success: true, fingerprint });
+    res.status(201).json({ success: true, fingerprint, reopened });
   } catch (error) {
     console.error("Error creating log:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -401,35 +418,63 @@ router.get(
     try {
       const query = req.query as {
         "project-id"?: string;
+        status?: string;
         limit?: string;
         offset?: string;
       };
 
-      let sql = `
-        SELECT
-          fingerprint,
-          project_id,
-          (array_agg(level ORDER BY timestamp DESC))[1] AS level,
-          (array_agg(message ORDER BY timestamp DESC))[1] AS message,
-          COUNT(*)::int AS count,
-          MIN(timestamp) AS first_seen,
-          MAX(timestamp) AS last_seen,
-          (array_agg(metadata ORDER BY timestamp DESC))[1] AS latest_metadata
-        FROM logs
-        WHERE fingerprint IS NOT NULL
-      `;
+      const statusFilter =
+        query.status === "resolved" || query.status === "all"
+          ? query.status
+          : "open";
+
       const params: any[] = [];
       let paramIndex = 1;
+      let projectFilter = "";
 
       if (query["project-id"]) {
-        sql += ` AND project_id = $${paramIndex}`;
+        projectFilter = ` AND project_id = $${paramIndex}`;
         params.push(query["project-id"]);
         paramIndex++;
       }
 
-      sql += `
-        GROUP BY fingerprint, project_id
-        ORDER BY last_seen DESC
+      let statusWhere = "";
+      if (statusFilter === "open") {
+        statusWhere = ` WHERE COALESCE(s.status, 'open') = 'open'`;
+      } else if (statusFilter === "resolved") {
+        statusWhere = ` WHERE s.status = 'resolved'`;
+      }
+
+      let sql = `
+        SELECT
+          agg.fingerprint,
+          agg.project_id,
+          agg.level,
+          agg.message,
+          agg.count,
+          agg.first_seen,
+          agg.last_seen,
+          agg.latest_metadata,
+          COALESCE(s.status, 'open') AS status,
+          s.resolved_at
+        FROM (
+          SELECT
+            fingerprint,
+            project_id,
+            (array_agg(level ORDER BY timestamp DESC))[1] AS level,
+            (array_agg(message ORDER BY timestamp DESC))[1] AS message,
+            COUNT(*)::int AS count,
+            MIN(timestamp) AS first_seen,
+            MAX(timestamp) AS last_seen,
+            (array_agg(metadata ORDER BY timestamp DESC))[1] AS latest_metadata
+          FROM logs
+          WHERE fingerprint IS NOT NULL${projectFilter}
+          GROUP BY fingerprint, project_id
+        ) agg
+        LEFT JOIN issue_states s
+          ON s.project_id = agg.project_id AND s.fingerprint = agg.fingerprint
+        ${statusWhere}
+        ORDER BY agg.last_seen DESC
       `;
 
       const limit = query.limit ? parseInt(query.limit.toString(), 10) : 50;
@@ -440,21 +485,37 @@ router.get(
 
       const result = await pool.query(sql, params);
 
-      let countSql = `
-        SELECT COUNT(*) FROM (
-          SELECT 1 FROM logs
-          WHERE fingerprint IS NOT NULL
-      `;
       const countParams: any[] = [];
       let countParamIndex = 1;
+      let countProjectFilter = "";
 
       if (query["project-id"]) {
-        countSql += ` AND project_id = $${countParamIndex}`;
+        countProjectFilter = ` AND project_id = $${countParamIndex}`;
         countParams.push(query["project-id"]);
         countParamIndex++;
       }
 
-      countSql += ` GROUP BY fingerprint, project_id) AS issues`;
+      let countStatusWhere = "";
+      if (statusFilter === "open") {
+        countStatusWhere = ` WHERE COALESCE(s.status, 'open') = 'open'`;
+      } else if (statusFilter === "resolved") {
+        countStatusWhere = ` WHERE s.status = 'resolved'`;
+      }
+
+      const countSql = `
+        SELECT COUNT(*) FROM (
+          SELECT agg.fingerprint
+          FROM (
+            SELECT fingerprint, project_id
+            FROM logs
+            WHERE fingerprint IS NOT NULL${countProjectFilter}
+            GROUP BY fingerprint, project_id
+          ) agg
+          LEFT JOIN issue_states s
+            ON s.project_id = agg.project_id AND s.fingerprint = agg.fingerprint
+          ${countStatusWhere}
+        ) AS issues
+      `;
 
       const countResult = await pool.query(countSql, countParams);
       const total = parseInt(countResult.rows[0].count, 10);
@@ -469,6 +530,8 @@ router.get(
           first_seen: row.first_seen,
           last_seen: row.last_seen,
           latest_metadata: row.latest_metadata || {},
+          status: row.status,
+          resolved_at: row.resolved_at,
         })),
         total,
         limit,
@@ -476,6 +539,62 @@ router.get(
       });
     } catch (error) {
       console.error("Error fetching issues:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// PATCH /api/logs/issues/:fingerprint/status - Resolve or reopen an issue (JWT)
+router.patch(
+  "/issues/:fingerprint/status",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { fingerprint } = req.params;
+      const projectId =
+        typeof req.body?.["project-id"] === "string"
+          ? req.body["project-id"].trim()
+          : "";
+      const status = req.body?.status;
+
+      if (!projectId) {
+        return res.status(400).json({ error: "project-id is required" });
+      }
+      if (status !== "open" && status !== "resolved") {
+        return res
+          .status(400)
+          .json({ error: 'status must be "open" or "resolved"' });
+      }
+
+      const exists = await pool.query(
+        `SELECT 1 FROM logs
+         WHERE fingerprint = $1 AND project_id = $2
+         LIMIT 1`,
+        [fingerprint, projectId]
+      );
+      if (exists.rows.length === 0) {
+        return res.status(404).json({ error: "Issue not found" });
+      }
+
+      const resolvedAt = status === "resolved" ? new Date() : null;
+      await pool.query(
+        `INSERT INTO issue_states (project_id, fingerprint, status, resolved_at, updated_at)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+         ON CONFLICT (project_id, fingerprint) DO UPDATE
+         SET status = EXCLUDED.status,
+             resolved_at = EXCLUDED.resolved_at,
+             updated_at = CURRENT_TIMESTAMP`,
+        [projectId, fingerprint, status, resolvedAt]
+      );
+
+      res.json({
+        fingerprint,
+        "project-id": projectId,
+        status,
+        resolved_at: resolvedAt,
+      });
+    } catch (error) {
+      console.error("Error updating issue status:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }

@@ -13,6 +13,10 @@ export function levelBadgeClass(level: string): string {
   }
 }
 
+export function issueStatusBadgeClass(status: string): string {
+  return status === "resolved" ? "badge badge-resolved" : "badge badge-open";
+}
+
 /** Chart series colors matching CSS tokens */
 export const chartColors = {
   error: "#c81e4a",

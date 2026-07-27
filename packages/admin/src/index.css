@@ -545,6 +545,18 @@ a {
   border-color: var(--border);
 }
 
+.badge-open {
+  background: var(--info-bg);
+  color: var(--info);
+  border-color: var(--info-border);
+}
+
+.badge-resolved {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+
 .badge-count {
   display: inline-flex;
   align-items: center;

@@ -65,9 +65,12 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 
 ## API surface
 
-- `POST /api/logs` — ingest (public + origin check)
+- `POST /api/logs` — ingest (public + origin check); auto-reopens a resolved issue when the same fingerprint is seen again (`reopened` on response + SSE)
 - `GET /api/logs` — list/filter (JWT); filters include `project-id`, `level`, dates, `request_id`, and repeated `where=path=value` for JSONB metadata (wide-event dimensions). SSE via `logBroadcaster`
 - `GET /api/logs/:id` — single log by id (JWT)
+- `GET /api/logs/issues` — aggregated issues (JWT); `status=open|resolved|all` (default `open`); includes `status` / `resolved_at`
+- `PATCH /api/logs/issues/:fingerprint/status` — resolve/reopen (JWT); body `{ "project-id", status: "open"|"resolved" }`
+- `GET /api/logs/issues/:fingerprint` — occurrences for a fingerprint (JWT)
 - `GET /api/logs/projects` — projects (JWT); project CRUD also under logs routes
 - `POST /api/auth/login`, `POST /api/auth/register`
 - `POST /api/share` — create share link for a log or issue (JWT); default expiry 7 days
@@ -76,7 +79,7 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 - Public UI: `/share/:token` (admin SPA, no login)
 - Admin deep links (JWT/session): `/logs/:id`, `/issues/:fingerprint?project=<project-id>` (also `/`, `/logs`, `/issues`, `/projects` for tabs)
 
-DB tables (created in `packages/server/src/db/connection.ts`): `projects` (`origins` JSONB, non-empty), `users`, `logs`, `share_links`.
+DB tables (created in `packages/server/src/db/connection.ts`): `projects` (`origins` JSONB, non-empty), `users`, `logs`, `share_links`, `issue_states` (per-project fingerprint status).
 
 ## Conventions
 

@@ -163,7 +163,12 @@ export default function Dashboard({
         const statsResponse = await apiClient.getDashboardStats(statsParams);
         if (cancelled) return;
 
-        const issuesParams: { "project-id"?: string; limit: number } = {
+        const issuesParams: {
+          "project-id"?: string;
+          status: "open";
+          limit: number;
+        } = {
+          status: "open",
           limit: TOP_ISSUES_LIMIT,
         };
         if (selectedProject) issuesParams["project-id"] = selectedProject;
@@ -278,6 +283,8 @@ export default function Dashboard({
             count: existing.count + 1,
             last_seen: log.timestamp,
             latest_metadata: log.metadata || {},
+            status: "open",
+            resolved_at: null,
           };
           return [
             updated,
@@ -294,6 +301,8 @@ export default function Dashboard({
           first_seen: log.timestamp,
           last_seen: log.timestamp,
           latest_metadata: log.metadata || {},
+          status: "open",
+          resolved_at: null,
         };
         return [created, ...prev].slice(0, TOP_ISSUES_LIMIT);
       });

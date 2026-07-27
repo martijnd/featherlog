@@ -9,6 +9,8 @@ export interface SSELogEntry {
   timestamp: string | Date;
   metadata: Record<string, any>;
   fingerprint?: string | null;
+  /** True when ingest auto-reopened a previously resolved issue */
+  reopened?: boolean;
 }
 
 // Singleton event emitter for broadcasting new logs
