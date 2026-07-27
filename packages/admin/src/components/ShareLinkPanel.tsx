@@ -84,97 +84,44 @@ export default function ShareLinkPanel({
     });
 
   return (
-    <div style={{ position: "relative" }}>
+    <div className="u-relative">
       <button
         type="button"
+        className="btn btn-primary btn-sm"
         onClick={(e) => {
           e.stopPropagation();
           void handleOpen();
-        }}
-        style={{
-          padding: "0.4rem 0.85rem",
-          backgroundColor: "#007bff",
-          color: "white",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer",
-          fontSize: "0.875rem",
-          fontWeight: 500,
         }}
       >
         Share
       </button>
 
       {open && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute",
-            top: "calc(100% + 0.5rem)",
-            right: 0,
-            width: "min(360px, 90vw)",
-            backgroundColor: "white",
-            border: "1px solid #dee2e6",
-            borderRadius: "8px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            padding: "1rem",
-            zIndex: 2100,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "0.75rem",
-            }}
-          >
-            <strong style={{ fontSize: "0.9rem", color: "#212529" }}>
-              Public share link
-            </strong>
+        <div className="popover" onClick={(e) => e.stopPropagation()}>
+          <div className="popover-header">
+            <strong style={{ fontSize: "13px" }}>Public share link</strong>
             <button
               type="button"
+              className="btn-icon"
               onClick={() => setOpen(false)}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "1.25rem",
-                cursor: "pointer",
-                color: "#6c757d",
-                lineHeight: 1,
-                padding: 0,
-              }}
+              aria-label="Close"
             >
               ×
             </button>
           </div>
 
           {loading && !share && (
-            <div style={{ fontSize: "0.875rem", color: "#6c757d" }}>
-              Creating link…
-            </div>
+            <div className="u-text-sm u-text-muted">Creating link…</div>
           )}
 
           {error && (
-            <div
-              style={{
-                fontSize: "0.875rem",
-                color: "#dc3545",
-                marginBottom: "0.5rem",
-              }}
-            >
+            <div className="alert alert-error" style={{ marginBottom: "0.5rem" }}>
               {error}
             </div>
           )}
 
           {revoked && !share && (
-            <div
-              style={{
-                fontSize: "0.875rem",
-                color: "#6c757d",
-                marginBottom: "0.75rem",
-              }}
-            >
+            <div className="u-text-sm u-text-muted u-mb-md">
               Link revoked. Create a new one to share again.
             </div>
           )}
@@ -182,61 +129,31 @@ export default function ShareLinkPanel({
           {share && (
             <>
               <input
+                className="input input-mono"
                 readOnly
                 value={shareUrl}
                 onFocus={(e) => e.currentTarget.select()}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "0.5rem 0.6rem",
-                  border: "1px solid #ced4da",
-                  borderRadius: "4px",
-                  fontSize: "0.8rem",
-                  fontFamily: "monospace",
-                  marginBottom: "0.5rem",
-                }}
+                style={{ marginBottom: "0.5rem" }}
               />
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#6c757d",
-                  marginBottom: "0.75rem",
-                }}
-              >
+              <div className="u-text-sm u-text-muted u-mb-md">
                 Expires {formatExpiry(share.expires_at)}
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div className="u-flex u-gap-sm">
                 <button
                   type="button"
+                  className="btn btn-success"
+                  style={{ flex: 1 }}
                   onClick={() => void handleCopy()}
                   disabled={loading}
-                  style={{
-                    flex: 1,
-                    padding: "0.45rem 0.75rem",
-                    backgroundColor: "#28a745",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.85rem",
-                  }}
                 >
                   {copied ? "Copied" : "Copy"}
                 </button>
                 <button
                   type="button"
+                  className="btn btn-danger"
+                  style={{ flex: 1 }}
                   onClick={() => void handleRevoke()}
                   disabled={loading}
-                  style={{
-                    flex: 1,
-                    padding: "0.45rem 0.75rem",
-                    backgroundColor: "#dc3545",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    fontSize: "0.85rem",
-                  }}
                 >
                   Revoke
                 </button>
@@ -247,18 +164,9 @@ export default function ShareLinkPanel({
           {revoked && !share && (
             <button
               type="button"
+              className="btn btn-primary btn-block"
               onClick={() => void handleOpen()}
               disabled={loading}
-              style={{
-                width: "100%",
-                padding: "0.45rem 0.75rem",
-                backgroundColor: "#007bff",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "0.85rem",
-              }}
             >
               Create new link
             </button>

@@ -37,17 +37,14 @@ export default function ProjectsManager({
     setLoading(true);
 
     try {
-      // Filter out empty origins
       const validOrigins = origins.filter((origin) => origin.trim() !== "");
 
-      // Require at least one origin
       if (validOrigins.length === 0) {
         setError("At least one origin is required");
         setLoading(false);
         return;
       }
 
-      // Disallow '*' as a single origin to prevent abuse
       if (validOrigins.length === 1 && validOrigins[0] === "*") {
         setError(
           "Cannot use '*' as the only origin. Specify at least one valid origin."
@@ -68,7 +65,11 @@ export default function ProjectsManager({
   };
 
   const handleDelete = async (projectId: string) => {
-    if (!confirm(`Are you sure you want to delete project "${projectId}"? This will also delete all associated logs.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to delete project "${projectId}"? This will also delete all associated logs.`
+      )
+    ) {
       return;
     }
 
@@ -86,7 +87,11 @@ export default function ProjectsManager({
   };
 
   const handleClearLogs = async (projectId: string, projectName: string) => {
-    if (!confirm(`Are you sure you want to clear all logs for project "${projectName}" (${projectId})? This action cannot be undone.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to clear all logs for project "${projectName}" (${projectId})? This action cannot be undone.`
+      )
+    ) {
       return;
     }
 
@@ -95,8 +100,10 @@ export default function ProjectsManager({
 
     try {
       const result = await apiClient.clearProjectLogs(projectId);
-      alert(`Successfully cleared ${result.deletedCount} log(s) for project "${projectName}"`);
-      onProjectUpdated(); // Refresh to update any log counts if displayed
+      alert(
+        `Successfully cleared ${result.deletedCount} log(s) for project "${projectName}"`
+      );
+      onProjectUpdated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to clear logs");
     } finally {
@@ -119,69 +126,32 @@ export default function ProjectsManager({
   };
 
   return (
-    <div
-      style={{
-        backgroundColor: "white",
-        borderRadius: "8px",
-        padding: "1.5rem",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-      }}
-    >
-      <h2 style={{ marginTop: 0, marginBottom: "1.5rem" }}>Projects</h2>
+    <div className="panel panel-pad">
+      <h2 style={{ margin: "0 0 1.25rem", fontSize: "1.1rem", fontWeight: 600 }}>
+        Projects
+      </h2>
 
-      {error && (
-        <div
-          style={{
-            marginBottom: "1rem",
-            padding: "0.75rem",
-            backgroundColor: "#fee",
-            color: "#c33",
-            borderRadius: "4px",
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <div className="alert alert-error u-mb-md">{error}</div>}
 
       {projects.length === 0 ? (
-        <p style={{ color: "#666" }}>No projects yet. Create one to get started.</p>
+        <p className="u-text-muted">No projects yet. Create one to get started.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div className="project-list">
           {projects.map((project) => (
-            <div
-              key={project.id}
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-                padding: "1rem",
-              }}
-            >
+            <div key={project.id} className="project-card">
               {editingProject?.id === project.id ? (
                 <form onSubmit={handleUpdate}>
-                  <div style={{ marginBottom: "1rem" }}>
-                    <strong>{project.name}</strong> ({project.id})
+                  <div className="u-mb-md">
+                    <strong>{project.name}</strong>{" "}
+                    <span className="u-text-muted">({project.id})</span>
                   </div>
 
-                  <div style={{ marginBottom: "1rem" }}>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.5rem",
-                        fontWeight: "500",
-                      }}
-                    >
-                      Allowed Origins
-                    </label>
+                  <div className="u-mb-md">
+                    <label className="form-label">Allowed origins</label>
                     {origins.map((origin, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          display: "flex",
-                          gap: "0.5rem",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
+                      <div key={index} className="origin-row">
                         <input
+                          className="input"
                           type="text"
                           value={origin}
                           onChange={(e) => updateOrigin(index, e.target.value)}
@@ -191,26 +161,12 @@ export default function ProjectsManager({
                               : "https://another-origin.com"
                           }
                           required={index === 0}
-                          style={{
-                            flex: 1,
-                            padding: "0.75rem",
-                            border: "1px solid #ddd",
-                            borderRadius: "4px",
-                            fontSize: "1rem",
-                          }}
                         />
                         {origins.length > 1 && (
                           <button
                             type="button"
+                            className="btn btn-danger"
                             onClick={() => removeOriginField(index)}
-                            style={{
-                              padding: "0.75rem",
-                              backgroundColor: "#dc3545",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                            }}
                           >
                             ×
                           </button>
@@ -219,60 +175,30 @@ export default function ProjectsManager({
                     ))}
                     <button
                       type="button"
+                      className="btn btn-secondary btn-sm"
                       onClick={addOriginField}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        backgroundColor: "#6c757d",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                      }}
                     >
-                      + Add Origin
+                      + Add origin
                     </button>
-                    <small
-                      style={{
-                        color: "#666",
-                        fontSize: "0.875rem",
-                        display: "block",
-                        marginTop: "0.5rem",
-                      }}
-                    >
+                    <span className="form-hint">
                       At least one origin is required. Use wildcards like
                       https://*.example.com (but not just '*')
-                    </small>
+                    </span>
                   </div>
 
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <div className="u-flex u-gap-sm">
                     <button
                       type="submit"
+                      className="btn btn-success"
                       disabled={loading}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        backgroundColor: "#28a745",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: loading ? "not-allowed" : "pointer",
-                        opacity: loading ? 0.6 : 1,
-                      }}
                     >
-                      {loading ? "Saving..." : "Save"}
+                      {loading ? "Saving…" : "Save"}
                     </button>
                     <button
                       type="button"
+                      className="btn btn-secondary"
                       onClick={cancelEdit}
                       disabled={loading}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        backgroundColor: "#6c757d",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: loading ? "not-allowed" : "pointer",
-                      }}
                     >
                       Cancel
                     </button>
@@ -280,93 +206,55 @@ export default function ProjectsManager({
                 </form>
               ) : (
                 <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
+                  <div className="project-card-top">
                     <div>
-                      <strong>{project.name}</strong>
-                      <div style={{ color: "#666", fontSize: "0.875rem" }}>
-                        ID: {project.id}
-                      </div>
-                      <div style={{ color: "#666", fontSize: "0.875rem", marginTop: "0.25rem" }}>
-                        Created: {new Date(project.created_at).toLocaleDateString()}
+                      <div className="project-name">{project.name}</div>
+                      <div className="project-meta">ID: {project.id}</div>
+                      <div className="project-meta">
+                        Created:{" "}
+                        {new Date(project.created_at).toLocaleDateString()}
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <div className="project-actions">
                       <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
                         onClick={() => startEdit(project)}
-                        style={{
-                          padding: "0.5rem 1rem",
-                          backgroundColor: "#17a2b8",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                        }}
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => handleClearLogs(project.id, project.name)}
+                        type="button"
+                        className="btn btn-warning btn-sm"
+                        onClick={() =>
+                          handleClearLogs(project.id, project.name)
+                        }
                         disabled={clearingLogsId === project.id}
-                        style={{
-                          padding: "0.5rem 1rem",
-                          backgroundColor: "#ffc107",
-                          color: "#333",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: clearingLogsId === project.id ? "not-allowed" : "pointer",
-                          opacity: clearingLogsId === project.id ? 0.6 : 1,
-                          fontSize: "0.875rem",
-                          fontWeight: "500",
-                        }}
                       >
-                        {clearingLogsId === project.id ? "Clearing..." : "Clear Logs"}
+                        {clearingLogsId === project.id
+                          ? "Clearing…"
+                          : "Clear logs"}
                       </button>
                       <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
                         onClick={() => handleDelete(project.id)}
                         disabled={deletingId === project.id}
-                        style={{
-                          padding: "0.5rem 1rem",
-                          backgroundColor: "#dc3545",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: deletingId === project.id ? "not-allowed" : "pointer",
-                          opacity: deletingId === project.id ? 0.6 : 1,
-                          fontSize: "0.875rem",
-                        }}
                       >
-                        {deletingId === project.id ? "Deleting..." : "Delete"}
+                        {deletingId === project.id ? "Deleting…" : "Delete"}
                       </button>
                     </div>
                   </div>
-                  <div style={{ marginTop: "0.75rem" }}>
-                    <div style={{ fontSize: "0.875rem", fontWeight: "500", marginBottom: "0.25rem" }}>
-                      Allowed Origins:
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div className="u-mt-sm">
+                    <div className="form-label">Allowed origins</div>
+                    <div className="tag-row">
                       {project.origins.length === 0 ? (
-                        <span style={{ color: "#999", fontStyle: "italic" }}>
+                        <span className="u-text-muted" style={{ fontStyle: "italic" }}>
                           No origins configured
                         </span>
                       ) : (
                         project.origins.map((origin, index) => (
-                          <span
-                            key={index}
-                            style={{
-                              padding: "0.25rem 0.75rem",
-                              backgroundColor: "#e9ecef",
-                              borderRadius: "4px",
-                              fontSize: "0.875rem",
-                            }}
-                          >
+                          <span key={index} className="tag">
                             {origin}
                           </span>
                         ))
@@ -382,4 +270,3 @@ export default function ProjectsManager({
     </div>
   );
 }
-

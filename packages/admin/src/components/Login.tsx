@@ -27,126 +27,55 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        minHeight: "100vh",
-        backgroundColor: "#f5f5f5",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "white",
-          padding: "2rem",
-          borderRadius: "8px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-          width: "100%",
-          maxWidth: "400px",
-        }}
-      >
-        <h1 style={{ marginBottom: "1.5rem", textAlign: "center" }}>
-          Featherlog Admin
-        </h1>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-brand">
+          <span className="app-brand-mark" aria-hidden>
+            F
+          </span>
+          <h1>Featherlog</h1>
+          <p>Sign in to your error tracking dashboard</p>
+        </div>
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-              }}
-            >
+          <div className="login-field">
+            <label className="form-label" htmlFor="username">
               Username
             </label>
             <input
+              id="username"
+              className="input"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-                fontSize: "1rem",
-              }}
+              autoComplete="username"
             />
           </div>
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-              }}
-            >
+          <div className="login-field">
+            <label className="form-label" htmlFor="password">
               Password
             </label>
             <input
+              id="password"
+              className="input"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-                fontSize: "1rem",
-              }}
+              autoComplete="current-password"
             />
           </div>
-          {error && (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "0.75rem",
-                backgroundColor: "#fee",
-                color: "#c33",
-                borderRadius: "4px",
-              }}
-            >
-              {error}
-            </div>
-          )}
+          {error && <div className="alert alert-error u-mb-md">{error}</div>}
           <button
             type="submit"
+            className="btn btn-primary btn-block"
             disabled={loading}
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              backgroundColor: "#007bff",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              fontSize: "1rem",
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.6 : 1,
-            }}
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? "Signing in…" : "Sign in"}
           </button>
-          <div
-            style={{
-              marginTop: "1rem",
-              padding: "0.75rem",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "4px",
-              fontSize: "0.875rem",
-              color: "#666",
-              textAlign: "center",
-            }}
-          >
+          <div className="login-hint">
             Need an account? Create one via CLI:{" "}
-            <code
-              style={{
-                backgroundColor: "#e9ecef",
-                padding: "0.2rem 0.4rem",
-                borderRadius: "3px",
-              }}
-            >
+            <code>
               docker compose exec server node dist/scripts/create-user.js
               &lt;username&gt; &lt;password&gt;
             </code>

@@ -1,5 +1,7 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { LogEntry } from "../api/client";
+import { levelBadgeClass } from "../ui";
+import { flashLevelClass, useArriveFlash } from "../useArriveFlash";
 
 interface GroupedLogEntry extends LogEntry {
   count: number;
@@ -29,19 +31,8 @@ export default function LogsTable({
   onLogClick,
 }: LogsTableProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case "error":
-        return "#dc3545";
-      case "warn":
-        return "#ffc107";
-      case "info":
-        return "#17a2b8";
-      default:
-        return "#6c757d";
-    }
-  };
+  const logIds = useMemo(() => logs.map((log) => log.id), [logs]);
+  const flashing = useArriveFlash(logIds);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString(undefined, {
@@ -55,7 +46,6 @@ export default function LogsTable({
     });
   };
 
-  // Stable across new occurrences so expand state / DOM identity survive realtime updates
   const getGroupKey = (log: LogEntry): string => {
     const metadataKey = JSON.stringify(
       log.metadata || {},
@@ -65,7 +55,6 @@ export default function LogsTable({
   };
 
   const createGroupedEntry = (group: LogEntry[]): GroupedLogEntry => {
-    // Newest first for display; oldest is firstOccurrence
     const newestFirst = [...group].sort(
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -81,10 +70,7 @@ export default function LogsTable({
     };
   };
 
-  // Group consecutive logs by message, level, project-id, and metadata
-  // This preserves chronological order while grouping identical consecutive logs
   const groupLogs = (logs: LogEntry[]): (LogEntry | GroupedLogEntry)[] => {
-    // First, sort logs chronologically (most recent first)
     const sortedLogs = [...logs].sort((a, b) => {
       const aTime = new Date(a.timestamp).getTime();
       const bTime = new Date(b.timestamp).getTime();
@@ -145,193 +131,91 @@ export default function LogsTable({
 
   return (
     <div>
-      <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        }}
-      >
+      <div className="panel panel-flush">
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>
+          <div className="empty-state">Loading…</div>
         ) : logs.length === 0 ? (
-          <div style={{ padding: "2rem", textAlign: "center" }}>
-            No logs found
-          </div>
+          <div className="empty-state">No logs found</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className="table-scroll">
+          <table className="data-table hide-secondary">
             <thead>
-              <tr
-                style={{
-                  backgroundColor: "#f8f9fa",
-                  borderBottom: "2px solid #dee2e6",
-                }}
-              >
-                <th
-                  style={{
-                    padding: "1rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                  }}
-                >
-                  Timestamp
-                </th>
-                <th
-                  style={{
-                    padding: "1rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                  }}
-                >
-                  Project
-                </th>
-                <th
-                  style={{
-                    padding: "1rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                  }}
-                >
-                  Level
-                </th>
-                <th
-                  style={{
-                    padding: "1rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                  }}
-                >
-                  Message
-                </th>
-                <th
-                  style={{
-                    padding: "1rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                  }}
-                >
-                  Metadata
-                </th>
+              <tr>
+                <th>Timestamp</th>
+                <th>Project</th>
+                <th>Level</th>
+                <th>Message</th>
+                <th>Metadata</th>
               </tr>
             </thead>
             <tbody>
               {groupedLogs.map((log) => {
                 const grouped = isGrouped(log);
-                // When grouped, the log already contains the last occurrence's data
                 const displayLog = log;
-                const rowKey = grouped
-                  ? getGroupKey(log)
-                  : String(log.id);
+                const rowKey = grouped ? getGroupKey(log) : String(log.id);
                 const isExpanded = grouped && expandedGroups.has(rowKey);
                 const visibleOccurrences = grouped
                   ? log.occurrences.slice(0, MAX_VISIBLE_OCCURRENCES)
                   : [];
+                const isFlashing = grouped
+                  ? log.occurrences.some((o) => flashing.has(String(o.id)))
+                  : flashing.has(String(displayLog.id));
+                const rowClass = [
+                  onLogClick ? "is-clickable" : "",
+                  isFlashing ? flashLevelClass(displayLog.level) : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
 
                 return (
                   <Fragment key={rowKey}>
                     <tr
-                      style={{
-                        borderBottom: isExpanded
-                          ? "none"
-                          : "1px solid #dee2e6",
-                        cursor: onLogClick ? "pointer" : "default",
-                        position: "relative",
-                      }}
+                      className={rowClass || undefined}
                       onClick={() => onLogClick?.(displayLog)}
-                      onMouseOver={(e) => {
-                        if (onLogClick) {
-                          e.currentTarget.style.backgroundColor = "#f8f9fa";
-                        }
-                      }}
-                      onMouseOut={(e) => {
-                        if (onLogClick) {
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }
-                      }}
                     >
-                      <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
-                        {formatDate(displayLog.timestamp)}
-                      </td>
-                      <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
-                        {displayLog["project-id"]}
-                      </td>
-                      <td style={{ padding: "1rem" }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            padding: "0.25rem 0.75rem",
-                            borderRadius: "4px",
-                            backgroundColor: getLevelColor(displayLog.level),
-                            color: "white",
-                            fontSize: "0.875rem",
-                            fontWeight: "500",
-                          }}
-                        >
-                          {displayLog.level.toUpperCase()}
+                      <td className="cell-muted">{formatDate(displayLog.timestamp)}</td>
+                      <td>{displayLog["project-id"]}</td>
+                      <td>
+                        <span className={levelBadgeClass(displayLog.level)}>
+                          {displayLog.level}
                         </span>
                       </td>
-                      <td
-                        style={{
-                          padding: "1rem",
-                          fontSize: "0.9rem",
-                          maxWidth: "400px",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {displayLog.message}
+                      <td style={{ maxWidth: 400, wordBreak: "break-word" }}>
+                        <div className="u-flex-center u-gap-sm" style={{ flexWrap: "wrap" }}>
+                          <span style={{ minWidth: 0 }}>{displayLog.message}</span>
+                          {grouped && (
+                            <span
+                              className={`badge-count${isExpanded ? " is-active" : ""}`}
+                              title={`Show ${Math.min(log.count, MAX_VISIBLE_OCCURRENCES)} of ${log.count} occurrences`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleGroupExpanded(rowKey);
+                              }}
+                              style={{ cursor: "pointer", flexShrink: 0 }}
+                            >
+                              {log.count}
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
-                        {grouped && (
-                          <span
-                            style={{
-                              position: "absolute",
-                              top: "50%",
-                              right: "0",
-                              transform: "translate(50%, -50%)",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              minWidth: "24px",
-                              height: "24px",
-                              padding: "0 6px",
-                              backgroundColor: isExpanded
-                                ? "#0056b3"
-                                : "#007bff",
-                              color: "white",
-                              borderRadius: "12px",
-                              fontSize: "0.75rem",
-                              fontWeight: "600",
-                              lineHeight: "1",
-                              zIndex: 10,
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                              cursor: "pointer",
-                            }}
-                            title={`Show ${Math.min(log.count, MAX_VISIBLE_OCCURRENCES)} of ${log.count} occurrences`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleGroupExpanded(rowKey);
-                            }}
-                          >
-                            {log.count}
-                          </span>
-                        )}
+                      <td>
                         {Object.keys(displayLog.metadata || {}).length > 0 ? (
-                          <details
-                            onClick={(e) => e.stopPropagation()}
-                          >
+                          <details onClick={(e) => e.stopPropagation()}>
                             <summary
-                              style={{ cursor: "pointer", color: "#007bff" }}
+                              style={{
+                                cursor: "pointer",
+                                color: "var(--accent)",
+                              }}
                             >
                               View ({Object.keys(displayLog.metadata).length}{" "}
                               keys)
                             </summary>
                             <pre
+                              className="message-block"
                               style={{
                                 marginTop: "0.5rem",
-                                padding: "0.5rem",
-                                backgroundColor: "#f8f9fa",
-                                borderRadius: "4px",
-                                fontSize: "0.8rem",
+                                fontSize: "12px",
+                                maxHeight: 200,
                                 overflow: "auto",
                               }}
                             >
@@ -339,7 +223,7 @@ export default function LogsTable({
                             </pre>
                           </details>
                         ) : (
-                          <span style={{ color: "#6c757d" }}>—</span>
+                          <span className="u-text-muted">—</span>
                         )}
                       </td>
                     </tr>
@@ -348,84 +232,29 @@ export default function LogsTable({
                         <td
                           colSpan={5}
                           style={{
-                            padding: "0 1rem 1rem 1rem",
-                            backgroundColor: "#f8f9fa",
-                            borderBottom: "1px solid #dee2e6",
+                            padding: "0 1rem 1rem",
+                            background: "var(--surface-muted)",
                           }}
                         >
-                          <div
-                            style={{
-                              border: "1px solid #dee2e6",
-                              borderRadius: "4px",
-                              backgroundColor: "white",
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
-                                padding: "0.5rem 0.75rem",
-                                fontSize: "0.8rem",
-                                fontWeight: "600",
-                                color: "#495057",
-                                borderBottom: "1px solid #dee2e6",
-                                backgroundColor: "#f1f3f5",
-                              }}
-                            >
+                          <div className="nested-panel">
+                            <div className="nested-panel-header">
                               Occurrences
                               {log.count > MAX_VISIBLE_OCCURRENCES
                                 ? ` (showing ${MAX_VISIBLE_OCCURRENCES} of ${log.count})`
                                 : ` (${log.count})`}
                             </div>
-                            <ul
-                              style={{
-                                listStyle: "none",
-                                margin: 0,
-                                padding: 0,
-                              }}
-                            >
-                              {visibleOccurrences.map((occurrence, index) => (
+                            <ul className="occurrence-list">
+                              {visibleOccurrences.map((occurrence) => (
                                 <li
                                   key={occurrence.id}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: "1rem",
-                                    padding: "0.6rem 0.75rem",
-                                    borderBottom:
-                                      index < visibleOccurrences.length - 1
-                                        ? "1px solid #eee"
-                                        : "none",
-                                    cursor: onLogClick ? "pointer" : "default",
-                                    fontSize: "0.85rem",
-                                  }}
+                                  className={`occurrence-item${onLogClick ? " is-clickable" : ""}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onLogClick?.(occurrence);
                                   }}
-                                  onMouseOver={(e) => {
-                                    if (onLogClick) {
-                                      e.currentTarget.style.backgroundColor =
-                                        "#f8f9fa";
-                                    }
-                                  }}
-                                  onMouseOut={(e) => {
-                                    if (onLogClick) {
-                                      e.currentTarget.style.backgroundColor =
-                                        "transparent";
-                                    }
-                                  }}
                                 >
-                                  <span style={{ color: "#212529" }}>
-                                    {formatDate(occurrence.timestamp)}
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: "#6c757d",
-                                      fontFamily: "monospace",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  >
+                                  <span>{formatDate(occurrence.timestamp)}</span>
+                                  <span className="cell-mono">
                                     #{occurrence.id}
                                   </span>
                                 </li>
@@ -440,55 +269,33 @@ export default function LogsTable({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
+
       {totalPages > 1 && (
-        <div
-          style={{
-            marginTop: "1rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "8px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-          }}
-        >
+        <div className="pagination">
           <div>
             Showing {offset + 1} to {Math.min(offset + limit, total)} of {total}{" "}
             logs
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div className="pagination-actions">
             <button
+              type="button"
+              className="btn btn-secondary btn-sm"
               onClick={() => onPageChange(Math.max(0, offset - limit))}
               disabled={offset === 0}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: offset === 0 ? "#e9ecef" : "#007bff",
-                color: offset === 0 ? "#6c757d" : "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: offset === 0 ? "not-allowed" : "pointer",
-              }}
             >
               Previous
             </button>
-            <span style={{ padding: "0.5rem" }}>
+            <span className="u-text-sm">
               Page {currentPage} of {totalPages}
             </span>
             <button
+              type="button"
+              className="btn btn-secondary btn-sm"
               onClick={() => onPageChange(offset + limit)}
               disabled={offset + limit >= total}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor:
-                  offset + limit >= total ? "#e9ecef" : "#007bff",
-                color: offset + limit >= total ? "#6c757d" : "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: offset + limit >= total ? "not-allowed" : "pointer",
-              }}
             >
               Next
             </button>

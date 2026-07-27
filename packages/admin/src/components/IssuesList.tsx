@@ -3,6 +3,7 @@ import { apiClient, Issue, LogEntry, Project } from "../api/client";
 import ShareLinkPanel from "./ShareLinkPanel";
 import CopyPermalinkButton from "./CopyPermalinkButton";
 import { issuePermalink } from "../permalink";
+import { levelBadgeClass } from "../ui";
 
 interface IssuesListProps {
   projects: Project[];
@@ -154,19 +155,6 @@ export default function IssuesList({
     });
   };
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case "error":
-        return "#dc3545";
-      case "warn":
-        return "#ffc107";
-      case "info":
-        return "#17a2b8";
-      default:
-        return "#6c757d";
-    }
-  };
-
   const getErrorName = (issue: Issue) => {
     const error = issue.latest_metadata?.error;
     if (error && typeof error === "object" && typeof error.name === "string") {
@@ -180,26 +168,13 @@ export default function IssuesList({
 
   return (
     <div>
-      <div
-        style={{
-          marginBottom: "1rem",
-          display: "flex",
-          gap: "1rem",
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.9rem", color: "#495057" }}>Project</span>
+      <div className="toolbar">
+        <label className="form-row">
+          <span className="form-inline-label">Project</span>
           <select
+            className="select select-inline"
             value={selectedProject}
             onChange={(e) => onProjectChange(e.target.value)}
-            style={{
-              padding: "0.5rem 0.75rem",
-              borderRadius: "4px",
-              border: "1px solid #ced4da",
-              fontSize: "0.9rem",
-            }}
           >
             <option value="">All projects</option>
             {projects.map((p) => (
@@ -209,43 +184,29 @@ export default function IssuesList({
             ))}
           </select>
         </label>
-        <span style={{ fontSize: "0.875rem", color: "#6c757d" }}>
+        <span className="u-text-sm u-text-muted u-hide-sm">
           Grouped by fingerprint from <code>logger.capture()</code>
         </span>
       </div>
 
-      <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        }}
-      >
+      <div className="panel panel-flush">
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>
+          <div className="empty-state">Loading…</div>
         ) : issues.length === 0 ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "#6c757d" }}>
+          <div className="empty-state">
             No issues yet. Use <code>logger.capture(error)</code> to create
             fingerprinted issues.
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className="table-scroll">
+          <table className="data-table hide-dates">
             <thead>
-              <tr
-                style={{
-                  backgroundColor: "#f8f9fa",
-                  borderBottom: "2px solid #dee2e6",
-                }}
-              >
-                <th style={{ padding: "1rem", textAlign: "left" }}>Issue</th>
-                <th style={{ padding: "1rem", textAlign: "left" }}>Project</th>
-                <th style={{ padding: "1rem", textAlign: "left" }}>Count</th>
-                <th style={{ padding: "1rem", textAlign: "left" }}>
-                  First seen
-                </th>
-                <th style={{ padding: "1rem", textAlign: "left" }}>
-                  Last seen
-                </th>
+              <tr>
+                <th>Issue</th>
+                <th>Project</th>
+                <th>Count</th>
+                <th>First seen</th>
+                <th>Last seen</th>
               </tr>
             </thead>
             <tbody>
@@ -254,90 +215,38 @@ export default function IssuesList({
                 return (
                   <Fragment key={issue.fingerprint}>
                     <tr
-                      style={{
-                        borderBottom: isExpanded
-                          ? "none"
-                          : "1px solid #dee2e6",
-                        cursor: "pointer",
-                      }}
+                      className="is-clickable"
                       onClick={() => toggleIssue(issue)}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f8f9fa";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                      }}
                     >
-                      <td style={{ padding: "1rem" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.75rem",
-                          }}
-                        >
-                          <span style={{ color: "#6c757d", width: "1rem" }}>
+                      <td>
+                        <div className="u-flex-center u-gap-md">
+                          <span className="expand-caret">
                             {isExpanded ? "▼" : "▶"}
                           </span>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "0.25rem 0.75rem",
-                              borderRadius: "4px",
-                              backgroundColor: getLevelColor(issue.level),
-                              color: "white",
-                              fontSize: "0.75rem",
-                              fontWeight: "500",
-                            }}
-                          >
+                          <span className={levelBadgeClass(issue.level)}>
                             {getErrorName(issue)}
                           </span>
                           <div>
                             <div
                               style={{
-                                fontSize: "0.95rem",
-                                fontWeight: "500",
+                                fontWeight: 500,
                                 wordBreak: "break-word",
                               }}
                             >
                               {issue.message}
                             </div>
-                            <code
-                              style={{
-                                fontSize: "0.75rem",
-                                color: "#6c757d",
-                              }}
-                            >
-                              {issue.fingerprint}
-                            </code>
+                            <code className="cell-mono">{issue.fingerprint}</code>
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: "1rem", fontSize: "0.9rem" }}>
-                        {issue["project-id"]}
+                      <td>{issue["project-id"]}</td>
+                      <td>
+                        <span className="badge-count">{issue.count}</span>
                       </td>
-                      <td style={{ padding: "1rem" }}>
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            minWidth: "28px",
-                            padding: "0.2rem 0.5rem",
-                            backgroundColor: "#007bff",
-                            color: "white",
-                            borderRadius: "12px",
-                            fontSize: "0.8rem",
-                            fontWeight: "600",
-                          }}
-                        >
-                          {issue.count}
-                        </span>
-                      </td>
-                      <td style={{ padding: "1rem", fontSize: "0.85rem" }}>
+                      <td className="cell-muted">
                         {formatDate(issue.first_seen)}
                       </td>
-                      <td style={{ padding: "1rem", fontSize: "0.85rem" }}>
+                      <td className="cell-muted">
                         {formatDate(issue.last_seen)}
                       </td>
                     </tr>
@@ -346,41 +255,14 @@ export default function IssuesList({
                         <td
                           colSpan={5}
                           style={{
-                            padding: "0 1rem 1rem 1rem",
-                            backgroundColor: "#f8f9fa",
-                            borderBottom: "1px solid #dee2e6",
+                            padding: "0 1rem 1rem",
+                            background: "var(--surface-muted)",
                           }}
                         >
-                          <div
-                            style={{
-                              border: "1px solid #dee2e6",
-                              borderRadius: "4px",
-                              backgroundColor: "white",
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
-                                padding: "0.5rem 0.75rem",
-                                fontSize: "0.8rem",
-                                fontWeight: "600",
-                                color: "#495057",
-                                borderBottom: "1px solid #dee2e6",
-                                backgroundColor: "#f1f3f5",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: "0.75rem",
-                              }}
-                            >
+                          <div className="nested-panel">
+                            <div className="nested-panel-header">
                               <span>Recent occurrences</span>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: "0.5rem",
-                                  alignItems: "center",
-                                }}
-                              >
+                              <div className="u-flex-center u-gap-sm">
                                 <CopyPermalinkButton
                                   url={issuePermalink(
                                     issue.fingerprint,
@@ -397,65 +279,26 @@ export default function IssuesList({
                               </div>
                             </div>
                             {occurrencesLoading ? (
-                              <div style={{ padding: "1rem" }}>Loading...</div>
+                              <div className="empty-state" style={{ padding: "1rem" }}>
+                                Loading…
+                              </div>
                             ) : occurrences.length === 0 ? (
-                              <div
-                                style={{
-                                  padding: "1rem",
-                                  color: "#6c757d",
-                                }}
-                              >
+                              <div className="empty-state" style={{ padding: "1rem" }}>
                                 No occurrences
                               </div>
                             ) : (
-                              <ul
-                                style={{
-                                  listStyle: "none",
-                                  margin: 0,
-                                  padding: 0,
-                                }}
-                              >
-                                {occurrences.map((log, index) => (
+                              <ul className="occurrence-list">
+                                {occurrences.map((log) => (
                                   <li
                                     key={log.id}
-                                    style={{
-                                      display: "flex",
-                                      justifyContent: "space-between",
-                                      gap: "1rem",
-                                      padding: "0.6rem 0.75rem",
-                                      borderBottom:
-                                        index < occurrences.length - 1
-                                          ? "1px solid #eee"
-                                          : "none",
-                                      cursor: onLogClick
-                                        ? "pointer"
-                                        : "default",
-                                      fontSize: "0.85rem",
-                                    }}
+                                    className={`occurrence-item${onLogClick ? " is-clickable" : ""}`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       onLogClick?.(log);
                                     }}
-                                    onMouseOver={(e) => {
-                                      if (onLogClick) {
-                                        e.currentTarget.style.backgroundColor =
-                                          "#f8f9fa";
-                                      }
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor =
-                                        "transparent";
-                                    }}
                                   >
                                     <span>{formatDate(log.timestamp)}</span>
-                                    <span
-                                      style={{
-                                        color: "#6c757d",
-                                        fontFamily: "monospace",
-                                      }}
-                                    >
-                                      #{log.id}
-                                    </span>
+                                    <span className="cell-mono">#{log.id}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -469,56 +312,33 @@ export default function IssuesList({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       {totalPages > 1 && (
-        <div
-          style={{
-            marginTop: "1rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "8px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-          }}
-        >
+        <div className="pagination">
           <div>
             Showing {offset + 1} to {Math.min(offset + limit, total)} of {total}{" "}
             issues
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <div className="pagination-actions">
             <button
+              type="button"
+              className="btn btn-secondary btn-sm"
               onClick={() => setOffset(Math.max(0, offset - limit))}
               disabled={offset === 0}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: offset === 0 ? "#e9ecef" : "#007bff",
-                color: offset === 0 ? "#6c757d" : "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: offset === 0 ? "not-allowed" : "pointer",
-              }}
             >
               Previous
             </button>
-            <span>
+            <span className="u-text-sm">
               Page {currentPage} of {totalPages}
             </span>
             <button
+              type="button"
+              className="btn btn-secondary btn-sm"
               onClick={() => setOffset(offset + limit)}
               disabled={offset + limit >= total}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor:
-                  offset + limit >= total ? "#e9ecef" : "#007bff",
-                color: offset + limit >= total ? "#6c757d" : "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: offset + limit >= total ? "not-allowed" : "pointer",
-              }}
             >
               Next
             </button>

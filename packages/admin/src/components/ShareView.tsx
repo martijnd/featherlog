@@ -6,19 +6,7 @@ import {
   SharePayload,
 } from "../api/client";
 import LogDetail from "./LogDetail";
-
-function getLevelColor(level: string) {
-  switch (level) {
-    case "error":
-      return "#dc3545";
-    case "warn":
-      return "#ffc107";
-    case "info":
-      return "#17a2b8";
-    default:
-      return "#6c757d";
-  }
-}
+import { levelBadgeClass } from "../ui";
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString(undefined, {
@@ -52,66 +40,33 @@ function IssueShareDetail({
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        padding: "2rem",
-        maxWidth: "900px",
-        margin: "0 auto",
-      }}
-    >
-      <div style={{ marginBottom: "1.5rem" }}>
+    <div className="share-page">
+      <div className="u-mb-md">
+        <div className="share-kicker">Featherlog · Shared issue</div>
         <div
-          style={{
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            color: "#6c757d",
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            marginBottom: "0.5rem",
-          }}
+          className="u-flex-center u-gap-md"
+          style={{ marginBottom: "0.75rem", flexWrap: "wrap" }}
         >
-          Featherlog · Shared issue
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            marginBottom: "0.75rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <span
-            style={{
-              display: "inline-block",
-              padding: "0.35rem 0.75rem",
-              borderRadius: "4px",
-              backgroundColor: getLevelColor(issue.level),
-              color: "white",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-            }}
-          >
+          <span className={levelBadgeClass(issue.level)}>
             {getErrorName(issue)}
           </span>
-          <span style={{ fontSize: "0.85rem", color: "#6c757d" }}>
+          <span className="u-text-sm u-text-muted">
             {issue.count} occurrence{issue.count === 1 ? "" : "s"} · project{" "}
             <code>{issue["project-id"]}</code>
           </span>
         </div>
         <h1
           style={{
-            margin: "0 0 0.5rem 0",
-            fontSize: "1.5rem",
+            margin: "0 0 0.5rem",
+            fontSize: "1.35rem",
             fontWeight: 600,
-            color: "#212529",
             wordBreak: "break-word",
+            letterSpacing: "-0.01em",
           }}
         >
           {issue.message}
         </h1>
-        <div style={{ fontSize: "0.85rem", color: "#6c757d" }}>
+        <div className="u-text-sm u-text-muted">
           <code>{issue.fingerprint}</code>
           <span style={{ margin: "0 0.5rem" }}>·</span>
           First seen {formatDate(issue.first_seen)}
@@ -122,57 +77,22 @@ function IssueShareDetail({
         </div>
       </div>
 
-      <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "0.75rem 1rem",
-            fontSize: "0.8rem",
-            fontWeight: 600,
-            color: "#495057",
-            borderBottom: "1px solid #dee2e6",
-            backgroundColor: "#f8f9fa",
-          }}
-        >
-          Recent occurrences
-        </div>
+      <div className="panel panel-flush">
+        <div className="panel-header">Recent occurrences</div>
         {logs.length === 0 ? (
-          <div style={{ padding: "1.25rem", color: "#6c757d" }}>
+          <div className="empty-state" style={{ padding: "1.25rem" }}>
             No occurrences
           </div>
         ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {logs.map((log, index) => (
+          <ul className="occurrence-list">
+            {logs.map((log) => (
               <li
                 key={log.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "1rem",
-                  padding: "0.75rem 1rem",
-                  borderBottom:
-                    index < logs.length - 1 ? "1px solid #eee" : "none",
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
-                }}
+                className="occurrence-item is-clickable"
                 onClick={() => setSelectedLog(log)}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f8f9fa";
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                }}
               >
                 <span>{formatDate(log.timestamp)}</span>
-                <span style={{ color: "#6c757d", fontFamily: "monospace" }}>
-                  #{log.id}
-                </span>
+                <span className="cell-mono">#{log.id}</span>
               </li>
             ))}
           </ul>
@@ -223,15 +143,7 @@ export default function ShareView({ token }: { token: string }) {
 
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#6c757d",
-        }}
-      >
+      <div className="empty-state" style={{ minHeight: "100vh" }}>
         Loading shared log…
       </div>
     );
@@ -240,32 +152,17 @@ export default function ShareView({ token }: { token: string }) {
   if (error || !payload) {
     return (
       <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "2rem",
-        }}
+        className="empty-state"
+        style={{ minHeight: "100vh", display: "flex", alignItems: "center" }}
       >
-        <div style={{ textAlign: "center", maxWidth: "420px" }}>
-          <div
-            style={{
-              fontSize: "0.85rem",
-              fontWeight: 600,
-              color: "#6c757d",
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              marginBottom: "0.75rem",
-            }}
-          >
-            Featherlog
-          </div>
-          <h1 style={{ margin: "0 0 0.5rem 0", fontSize: "1.5rem" }}>
+        <div style={{ textAlign: "center", maxWidth: 420, margin: "0 auto" }}>
+          <div className="share-kicker">Featherlog</div>
+          <h1 style={{ margin: "0 0 0.5rem", fontSize: "1.35rem" }}>
             Link unavailable
           </h1>
-          <p style={{ margin: 0, color: "#6c757d" }}>
-            {error || "This share link is missing, expired, or has been revoked."}
+          <p className="u-text-muted" style={{ margin: 0 }}>
+            {error ||
+              "This share link is missing, expired, or has been revoked."}
           </p>
         </div>
       </div>
@@ -274,23 +171,11 @@ export default function ShareView({ token }: { token: string }) {
 
   if (payload.type === "log") {
     return (
-      <div style={{ minHeight: "100vh", maxWidth: "900px", margin: "0 auto" }}>
-        <div
-          style={{
-            padding: "0.75rem 1.5rem",
-            borderBottom: "1px solid #e9ecef",
-            backgroundColor: "#f8f9fa",
-            fontSize: "0.85rem",
-            color: "#6c757d",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
+      <div style={{ minHeight: "100vh", maxWidth: 900, margin: "0 auto" }}>
+        <div className="share-banner">
           <span>
-            <strong style={{ color: "#495057" }}>Featherlog</strong> · Shared
-            log
+            <strong style={{ color: "var(--text-secondary)" }}>Featherlog</strong>{" "}
+            · Shared log
           </span>
           <span>Link expires {formatDate(payload.expires_at)}</span>
         </div>

@@ -21,17 +21,14 @@ export default function CreateProject({
     setLoading(true);
 
     try {
-      // Filter out empty origins
       const validOrigins = origins.filter((origin) => origin.trim() !== "");
 
-      // Require at least one origin
       if (validOrigins.length === 0) {
         setError("At least one origin is required");
         setLoading(false);
         return;
       }
 
-      // Disallow '*' as a single origin to prevent abuse
       if (validOrigins.length === 1 && validOrigins[0] === "*") {
         setError(
           "Cannot use '*' as the only origin. Specify at least one valid origin."
@@ -41,13 +38,11 @@ export default function CreateProject({
       }
 
       await apiClient.createProject(projectId, projectName, validOrigins);
-      // Close modal immediately and reset form
       setIsOpen(false);
       setProjectId("");
       setProjectName("");
       setOrigins([""]);
       setError("");
-      // Call callback to refresh projects list and show toast
       onProjectCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
@@ -81,148 +76,64 @@ export default function CreateProject({
   if (!isOpen) {
     return (
       <button
+        type="button"
+        className="btn btn-primary btn-sm"
         onClick={() => setIsOpen(true)}
-        style={{
-          padding: "0.5rem 1rem",
-          backgroundColor: "#28a745",
-          color: "white",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer",
-          fontSize: "0.9rem",
-        }}
       >
-        + Create Project
+        + Create project
       </button>
     );
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 1000,
-      }}
-      onClick={handleClose}
-    >
-      <div
-        style={{
-          backgroundColor: "white",
-          padding: "2rem",
-          borderRadius: "8px",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-          width: "90%",
-          maxWidth: "500px",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1.5rem",
-          }}
-        >
-          <h2 style={{ margin: 0 }}>Create New Project</h2>
+    <div className="modal-backdrop" onClick={handleClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Create project</h2>
           <button
+            type="button"
+            className="btn-icon"
             onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "#666",
-            }}
+            aria-label="Close"
           >
             ×
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-              }}
-            >
-              Project ID *
-            </label>
+          <div className="login-field">
+            <label className="form-label">Project ID *</label>
             <input
+              className="input"
               type="text"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               required
               placeholder="my-project"
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-                fontSize: "1rem",
-              }}
             />
-            <small style={{ color: "#666", fontSize: "0.875rem" }}>
+            <span className="form-hint">
               Unique identifier for this project (used in SDK)
-            </small>
+            </span>
           </div>
 
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-              }}
-            >
-              Project Name *
-            </label>
+          <div className="login-field">
+            <label className="form-label">Project name *</label>
             <input
+              className="input"
               type="text"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               required
               placeholder="My Project"
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-                fontSize: "1rem",
-              }}
             />
           </div>
 
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-              }}
-            >
-              Allowed Origins
-            </label>
+          <div className="login-field">
+            <label className="form-label">Allowed origins</label>
             {origins.map((origin, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  marginBottom: "0.5rem",
-                }}
-              >
+              <div key={index} className="origin-row">
                 <input
+                  className="input"
                   type="text"
                   value={origin}
                   onChange={(e) => updateOrigin(index, e.target.value)}
@@ -232,26 +143,12 @@ export default function CreateProject({
                       : "https://another-origin.com"
                   }
                   required={index === 0}
-                  style={{
-                    flex: 1,
-                    padding: "0.75rem",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    fontSize: "1rem",
-                  }}
                 />
                 {origins.length > 1 && (
                   <button
                     type="button"
+                    className="btn btn-danger"
                     onClick={() => removeOriginField(index)}
-                    style={{
-                      padding: "0.75rem",
-                      backgroundColor: "#dc3545",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
                   >
                     ×
                   </button>
@@ -260,83 +157,33 @@ export default function CreateProject({
             ))}
             <button
               type="button"
+              className="btn btn-secondary btn-sm"
               onClick={addOriginField}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "0.875rem",
-              }}
             >
-              + Add Origin
+              + Add origin
             </button>
-            <small
-              style={{
-                color: "#666",
-                fontSize: "0.875rem",
-                display: "block",
-                marginTop: "0.5rem",
-              }}
-            >
+            <span className="form-hint">
               At least one origin is required. Use wildcards like
               https://*.example.com (but not just '*')
-            </small>
+            </span>
           </div>
 
-          {error && (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "0.75rem",
-                backgroundColor: "#fee",
-                color: "#c33",
-                borderRadius: "4px",
-              }}
-            >
-              {error}
-            </div>
-          )}
+          {error && <div className="alert alert-error u-mb-md">{error}</div>}
 
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              justifyContent: "flex-end",
-            }}
-          >
+          <div className="modal-actions">
             <button
               type="button"
+              className="btn btn-secondary"
               onClick={handleClose}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                fontSize: "1rem",
-                cursor: "pointer",
-              }}
             >
               Cancel
             </button>
             <button
               type="submit"
+              className="btn btn-primary"
               disabled={loading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "#28a745",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                fontSize: "1rem",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.6 : 1,
-              }}
             >
-              {loading ? "Creating..." : "Create Project"}
+              {loading ? "Creating…" : "Create project"}
             </button>
           </div>
         </form>

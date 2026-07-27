@@ -3,6 +3,7 @@ import { LogEntry } from "../api/client";
 import ShareLinkPanel from "./ShareLinkPanel";
 import CopyPermalinkButton from "./CopyPermalinkButton";
 import { logPermalink } from "../permalink";
+import { levelBadgeClass } from "../ui";
 
 interface LogDetailProps {
   log: LogEntry;
@@ -36,55 +37,47 @@ function JsonViewer({ data, level = 0 }: JsonViewerProps) {
   const isExpanded = expanded.has(uniqueKey);
 
   if (data === null || data === undefined) {
-    return <span style={{ color: "#6c757d", fontStyle: "italic" }}>null</span>;
+    return <span className="json-muted" style={{ fontStyle: "italic" }}>null</span>;
   }
 
   if (typeof data === "string") {
-    return <span style={{ color: "#28a745" }}>"{data}"</span>;
+    return <span className="json-string">"{data}"</span>;
   }
 
   if (typeof data === "number") {
-    return <span style={{ color: "#007bff" }}>{data}</span>;
+    return <span className="json-number">{data}</span>;
   }
 
   if (typeof data === "boolean") {
-    return <span style={{ color: "#6f42c1" }}>{String(data)}</span>;
+    return <span className="json-bool">{String(data)}</span>;
   }
 
   if (Array.isArray(data)) {
     if (data.length === 0) {
-      return <span style={{ color: "#6c757d" }}>[]</span>;
+      return <span className="json-muted">[]</span>;
     }
     return (
       <div style={{ marginLeft: `${indent}px` }}>
-        <span
-          onClick={toggleExpand}
-          style={{
-            cursor: "pointer",
-            userSelect: "none",
-            color: "#6c757d",
-            fontWeight: "500",
-          }}
-        >
+        <span className="json-toggle" onClick={toggleExpand}>
           {isExpanded ? "▼" : "▶"} [
         </span>
         {isExpanded && (
           <div style={{ marginLeft: "20px" }}>
             {data.map((item, index) => (
               <div key={index} style={{ marginBottom: "4px" }}>
-                <span style={{ color: "#6c757d" }}>{index}: </span>
+                <span className="json-muted">{index}: </span>
                 <JsonViewer data={item} level={level + 1} />
                 {index < data.length - 1 && (
-                  <span style={{ color: "#6c757d" }}>,</span>
+                  <span className="json-muted">,</span>
                 )}
               </div>
             ))}
           </div>
         )}
         {!isExpanded && (
-          <span style={{ color: "#6c757d" }}> {data.length} items</span>
+          <span className="json-muted"> {data.length} items</span>
         )}
-        <span style={{ color: "#6c757d" }}>]</span>
+        <span className="json-muted">]</span>
       </div>
     );
   }
@@ -92,41 +85,31 @@ function JsonViewer({ data, level = 0 }: JsonViewerProps) {
   if (typeof data === "object") {
     const keys = Object.keys(data);
     if (keys.length === 0) {
-      return <span style={{ color: "#6c757d" }}>{"{}"}</span>;
+      return <span className="json-muted">{"{}"}</span>;
     }
     return (
       <div style={{ marginLeft: `${indent}px` }}>
-        <span
-          onClick={toggleExpand}
-          style={{
-            cursor: "pointer",
-            userSelect: "none",
-            color: "#6c757d",
-            fontWeight: "500",
-          }}
-        >
+        <span className="json-toggle" onClick={toggleExpand}>
           {isExpanded ? "▼" : "▶"} {"{"}
         </span>
         {isExpanded && (
           <div style={{ marginLeft: "20px" }}>
             {keys.map((k, index) => (
               <div key={k} style={{ marginBottom: "4px" }}>
-                <span style={{ color: "#e83e8c", fontWeight: "500" }}>
-                  "{k}"
-                </span>
-                <span style={{ color: "#6c757d" }}>: </span>
+                <span className="json-key">"{k}"</span>
+                <span className="json-muted">: </span>
                 <JsonViewer data={data[k]} level={level + 1} />
                 {index < keys.length - 1 && (
-                  <span style={{ color: "#6c757d" }}>,</span>
+                  <span className="json-muted">,</span>
                 )}
               </div>
             ))}
           </div>
         )}
         {!isExpanded && (
-          <span style={{ color: "#6c757d" }}> {keys.length} keys</span>
+          <span className="json-muted"> {keys.length} keys</span>
         )}
-        <span style={{ color: "#6c757d" }}>{"}"}</span>
+        <span className="json-muted">{"}"}</span>
       </div>
     );
   }
@@ -141,18 +124,6 @@ export default function LogDetail({
   showShare = true,
 }: LogDetailProps) {
   const isPage = variant === "page";
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case "error":
-        return "#dc3545";
-      case "warn":
-        return "#ffc107";
-      case "info":
-        return "#17a2b8";
-      default:
-        return "#6c757d";
-    }
-  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -230,86 +201,17 @@ export default function LogDetail({
   }
 
   return (
-    <div
-      style={
-        isPage
-          ? {
-              backgroundColor: "white",
-              display: "flex",
-              flexDirection: "column",
-            }
-          : {
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "white",
-              zIndex: 2000,
-              overflow: "auto",
-              display: "flex",
-              flexDirection: "column",
-            }
-      }
-    >
-      {/* Header */}
-      <div
-        style={{
-          padding: "1.5rem",
-          borderBottom: "2px solid #e9ecef",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
-              marginBottom: "0.5rem",
-            }}
-          >
-            <span
-              style={{
-                display: "inline-block",
-                padding: "0.5rem 1rem",
-                borderRadius: "6px",
-                backgroundColor: getLevelColor(log.level),
-                color: "white",
-                fontSize: "0.875rem",
-                fontWeight: "600",
-              }}
-            >
-              {log.level.toUpperCase()}
-            </span>
-            <span style={{ fontSize: "0.875rem", color: "#6c757d" }}>
-              Log ID: {log.id}
-            </span>
+    <div className={`log-detail${isPage ? "" : " is-modal"}`}>
+      <div className="log-detail-header">
+        <div className="u-flex-1">
+          <div className="log-detail-meta">
+            <span className={levelBadgeClass(log.level)}>{log.level}</span>
+            <span className="u-text-sm u-text-muted">Log ID: {log.id}</span>
           </div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "1.5rem",
-              fontWeight: "600",
-              color: "#212529",
-              wordBreak: "break-word",
-            }}
-          >
-            {log.message}
-          </h2>
+          <h2 className="log-detail-title">{log.message}</h2>
         </div>
         {!isPage && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              flexShrink: 0,
-            }}
-          >
+          <div className="log-detail-actions">
             {showShare && (
               <>
                 <CopyPermalinkButton url={logPermalink(log.id)} />
@@ -317,22 +219,10 @@ export default function LogDetail({
               </>
             )}
             <button
+              type="button"
+              className="btn-icon"
               onClick={onClose}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "1.5rem",
-                cursor: "pointer",
-                color: "#6c757d",
-                padding: "0.25rem 0.5rem",
-                lineHeight: "1",
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.color = "#212529";
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.color = "#6c757d";
-              }}
+              aria-label="Close"
             >
               ×
             </button>
@@ -340,316 +230,88 @@ export default function LogDetail({
         )}
       </div>
 
-      {/* Content */}
-      <div style={{ padding: "1.5rem", flex: 1, overflow: "auto" }}>
-        {/* Basic Information */}
-        <div style={{ marginBottom: "2rem" }}>
-          <h3
-            style={{
-              margin: "0 0 1rem 0",
-              fontSize: "1rem",
-              fontWeight: "600",
-              color: "#495057",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Basic Information
-          </h3>
-          <div
-            style={{
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              padding: "1rem",
-            }}
-          >
-            <div style={{ display: "grid", gap: "0.75rem" }}>
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <span
-                  style={{
-                    fontWeight: "600",
-                    color: "#6c757d",
-                    minWidth: "120px",
-                  }}
-                >
-                  Project ID:
-                </span>
-                <code
-                  style={{
-                    backgroundColor: "#e9ecef",
-                    padding: "0.25rem 0.5rem",
-                    borderRadius: "4px",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  {log["project-id"]}
-                </code>
+      <div className="log-detail-body">
+        <div className="log-detail-section">
+          <h3 className="panel-section-title">Basic information</h3>
+          <div className="panel-body-muted">
+            <div className="meta-grid">
+              <div className="meta-row">
+                <span className="meta-label">Project ID</span>
+                <code className="code-block">{log["project-id"]}</code>
               </div>
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <span
-                  style={{
-                    fontWeight: "600",
-                    color: "#6c757d",
-                    minWidth: "120px",
-                  }}
-                >
-                  Timestamp:
-                </span>
+              <div className="meta-row">
+                <span className="meta-label">Timestamp</span>
                 <div>
                   <div>{dateInfo.full}</div>
-                  <div
-                    style={{
-                      fontSize: "0.875rem",
-                      color: "#6c757d",
-                      marginTop: "0.25rem",
-                    }}
-                  >
-                    {dateInfo.relative} • {dateInfo.iso}
+                  <div className="u-text-sm u-text-muted u-mt-sm">
+                    {dateInfo.relative} · {dateInfo.iso}
                   </div>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <span
-                  style={{
-                    fontWeight: "600",
-                    color: "#6c757d",
-                    minWidth: "120px",
-                  }}
-                >
-                  Level:
-                </span>
-                <span
-                  style={{
-                    display: "inline-block",
-                    padding: "0.25rem 0.75rem",
-                    borderRadius: "4px",
-                    backgroundColor: getLevelColor(log.level),
-                    color: "white",
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                  }}
-                >
-                  {log.level.toUpperCase()}
-                </span>
+              <div className="meta-row">
+                <span className="meta-label">Level</span>
+                <span className={levelBadgeClass(log.level)}>{log.level}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Message */}
-        <div style={{ marginBottom: "2rem" }}>
-          <h3
-            style={{
-              margin: "0 0 1rem 0",
-              fontSize: "1rem",
-              fontWeight: "600",
-              color: "#495057",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Message
-          </h3>
-          <div
-            style={{
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              padding: "1rem",
-              fontFamily: "monospace",
-              fontSize: "0.9rem",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-          >
-            {log.message}
-          </div>
+        <div className="log-detail-section">
+          <h3 className="panel-section-title">Message</h3>
+          <div className="message-block">{log.message}</div>
         </div>
 
-        {/* Wide-event context */}
         {contextRows.length > 0 && (
-          <div style={{ marginBottom: "2rem" }}>
-            <h3
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1rem",
-                fontWeight: "600",
-                color: "#495057",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Event Context
-            </h3>
-            <div
-              style={{
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px",
-                padding: "1rem",
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                gap: "0.75rem",
-              }}
-            >
+          <div className="log-detail-section">
+            <h3 className="panel-section-title">Event context</h3>
+            <div className="panel-body-muted context-grid">
               {contextRows.map((row) => (
                 <div key={row.label}>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "#6c757d",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.4px",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    {row.label}
-                  </div>
-                  <code
-                    style={{
-                      display: "block",
-                      backgroundColor: "#e9ecef",
-                      padding: "0.35rem 0.5rem",
-                      borderRadius: "4px",
-                      fontSize: "0.8rem",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {row.value}
-                  </code>
+                  <div className="context-item-label">{row.label}</div>
+                  <code className="code-block">{row.value}</code>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Stack trace */}
         {stack && (
-          <div style={{ marginBottom: "2rem" }}>
-            <h3
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1rem",
-                fontWeight: "600",
-                color: "#495057",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Stack Trace
+          <div className="log-detail-section">
+            <h3 className="panel-section-title">
+              Stack trace
               {errorObj?.name ? ` — ${String(errorObj.name)}` : ""}
             </h3>
-            <pre
-              style={{
-                margin: 0,
-                backgroundColor: "#212529",
-                color: "#f8f9fa",
-                borderRadius: "8px",
-                padding: "1rem",
-                fontSize: "0.8rem",
-                overflow: "auto",
-                maxHeight: "320px",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-            >
-              {stack}
-            </pre>
+            <pre className="stack-block">{stack}</pre>
           </div>
         )}
 
-        {/* Metadata */}
         {metadataKeys.length > 0 ? (
-          <div>
-            <h3
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1rem",
-                fontWeight: "600",
-                color: "#495057",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
+          <div className="log-detail-section">
+            <h3 className="panel-section-title">
               Metadata ({metadataKeys.length}{" "}
               {metadataKeys.length === 1 ? "key" : "keys"})
             </h3>
-            <div
-              style={{
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px",
-                padding: "1rem",
-                fontFamily: "monospace",
-                fontSize: "0.875rem",
-                overflow: "auto",
-                maxHeight: "400px",
-                border: "1px solid #dee2e6",
-              }}
-            >
+            <div className="json-viewer">
               <JsonViewer data={log.metadata} />
             </div>
           </div>
         ) : (
-          <div>
-            <h3
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1rem",
-                fontWeight: "600",
-                color: "#495057",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Metadata
-            </h3>
-            <div
-              style={{
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px",
-                padding: "1rem",
-                textAlign: "center",
-                color: "#6c757d",
-                fontStyle: "italic",
-              }}
-            >
+          <div className="log-detail-section">
+            <h3 className="panel-section-title">Metadata</h3>
+            <div className="panel-body-muted empty-state" style={{ padding: "1rem" }}>
               No metadata available
             </div>
           </div>
         )}
       </div>
 
-      {/* Footer */}
-      <div
-        style={{
-          padding: "1rem 1.5rem",
-          borderTop: "2px solid #e9ecef",
-          display: "flex",
-          justifyContent: "flex-end",
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={onClose}
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor: "#007bff",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            fontSize: "1rem",
-            cursor: "pointer",
-            fontWeight: "500",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.backgroundColor = "#0056b3";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.backgroundColor = "#007bff";
-          }}
-        >
-          Close
-        </button>
-      </div>
+      {!isPage && (
+        <div className="log-detail-footer">
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      )}
     </div>
   );
 }

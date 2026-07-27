@@ -140,7 +140,6 @@ function App() {
             break;
         }
       } finally {
-        // Allow URL sync on next tick after state settles
         setTimeout(() => {
           skipUrlSyncRef.current = false;
         }, 0);
@@ -485,279 +484,168 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  const navItems: { id: AdminView; label: string }[] = [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "logs", label: "Logs" },
+    { id: "issues", label: "Issues" },
+    { id: "projects", label: "Projects" },
+  ];
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        padding: "2rem",
-        maxWidth: "1400px",
-        margin: "0 auto",
-      }}
-    >
+    <div className="app-shell">
       {toast && (
         <div
-          style={{
-            position: "fixed",
-            top: "1rem",
-            right: "1rem",
-            backgroundColor: toast.type === "success" ? "#28a745" : "#dc3545",
-            color: "white",
-            padding: "1rem 1.5rem",
-            borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            zIndex: 2000,
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            maxWidth: "400px",
-            transform: "translateX(0)",
-            transition: "transform 0.3s ease-out, opacity 0.3s ease-out",
-            opacity: 1,
-          }}
+          className={`toast ${toast.type === "success" ? "toast-success" : "toast-error"}`}
+          role="status"
         >
-          <span style={{ fontSize: "1.25rem", flexShrink: 0 }}>
-            {toast.type === "success" ? "✓" : "✗"}
-          </span>
-          <span style={{ flex: 1 }}>{toast.message}</span>
+          <span>{toast.type === "success" ? "✓" : "✗"}</span>
+          <span className="u-flex-1">{toast.message}</span>
           <button
+            type="button"
+            className="toast-close"
             onClick={() => setToast(null)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "white",
-              fontSize: "1.25rem",
-              cursor: "pointer",
-              padding: "0",
-              marginLeft: "0.5rem",
-              lineHeight: "1",
-              flexShrink: 0,
-              opacity: 0.8,
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.opacity = "1";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.opacity = "0.8";
-            }}
+            aria-label="Dismiss"
           >
             ×
           </button>
         </div>
       )}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "2rem",
-        }}
-      >
-        <h1>Featherlog Admin</h1>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+
+      <header className="app-header">
+        <div className="app-brand">
+          <span className="app-brand-mark" aria-hidden>
+            F
+          </span>
+          <span className="app-brand-name">Featherlog</span>
+        </div>
+
+        <div className="app-header-actions">
           {(activeView === "dashboard" ||
             activeView === "logs" ||
             activeView === "issues") && (
             <button
+              type="button"
+              className={`live-pill${isRealtime ? " is-on" : ""}`}
               onClick={toggleRealtime}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: isRealtime ? "#28a745" : "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
               title={
                 isRealtime
                   ? "Realtime updates enabled"
                   : "Realtime updates disabled"
               }
             >
-              {isRealtime ? "● Realtime" : "○ Manual"}
+              <span className="live-dot" aria-hidden />
+              <span className="live-pill-label">
+                {isRealtime ? "Live" : "Paused"}
+              </span>
             </button>
           )}
           {activeView === "projects" && (
             <CreateProject onProjectCreated={handleProjectCreated} />
           )}
           <button
+            type="button"
+            className="btn btn-secondary btn-sm"
             onClick={handleLogout}
-            style={{
-              padding: "0.5rem 1rem",
-              backgroundColor: "#dc3545",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
           >
-            Logout
+            Log out
           </button>
         </div>
-      </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1.5rem",
-          borderBottom: "2px solid #e9ecef",
-        }}
-      >
-        <button
-          onClick={() => switchView("dashboard")}
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor: "transparent",
-            color: activeView === "dashboard" ? "#007bff" : "#6c757d",
-            border: "none",
-            borderBottom:
-              activeView === "dashboard"
-                ? "2px solid #007bff"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontWeight: activeView === "dashboard" ? "600" : "400",
-            marginBottom: "-2px",
-          }}
-        >
-          Dashboard
-        </button>
-        <button
-          onClick={() => switchView("logs")}
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor: "transparent",
-            color: activeView === "logs" ? "#007bff" : "#6c757d",
-            border: "none",
-            borderBottom:
-              activeView === "logs"
-                ? "2px solid #007bff"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontWeight: activeView === "logs" ? "600" : "400",
-            marginBottom: "-2px",
-          }}
-        >
-          Logs
-        </button>
-        <button
-          onClick={() => switchView("issues")}
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor: "transparent",
-            color: activeView === "issues" ? "#007bff" : "#6c757d",
-            border: "none",
-            borderBottom:
-              activeView === "issues"
-                ? "2px solid #007bff"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontWeight: activeView === "issues" ? "600" : "400",
-            marginBottom: "-2px",
-          }}
-        >
-          Issues
-        </button>
-        <button
-          onClick={() => switchView("projects")}
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor: "transparent",
-            color: activeView === "projects" ? "#007bff" : "#6c757d",
-            border: "none",
-            borderBottom:
-              activeView === "projects"
-                ? "2px solid #007bff"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontWeight: activeView === "projects" ? "600" : "400",
-            marginBottom: "-2px",
-          }}
-        >
-          Projects
-        </button>
-      </div>
+        <nav className="app-nav" aria-label="Primary">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`app-nav-item${activeView === item.id ? " is-active" : ""}`}
+              onClick={() => switchView(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </header>
 
-      {activeView === "dashboard" && (
-        <Dashboard
-          projects={projects}
-          selectedProject={selectedProject}
-          onProjectChange={setSelectedProject}
-          onLogClick={openLog}
-          liveEvent={isRealtime ? dashboardLiveEvent : null}
-          onNavigateToLogs={navigateToLogsFromDashboard}
-          onNavigateToIssue={navigateToIssueFromDashboard}
-        />
-      )}
-
-      {activeView === "logs" && (
-        <>
-          <FilterBar
+      <main className="app-main">
+        {activeView === "dashboard" && (
+          <Dashboard
             projects={projects}
             selectedProject={selectedProject}
-            selectedLevel={selectedLevel}
-            startDate={startDate}
-            endDate={endDate}
-            requestId={requestId}
-            whereFilters={whereFilters}
-            onProjectChange={(projectId) => {
-              setSelectedProject(projectId);
-              setOffset(0);
-            }}
-            onLevelChange={(level) => {
-              setSelectedLevel(level);
-              setOffset(0);
-            }}
-            onStartDateChange={(date) => {
-              setStartDate(date);
-              setOffset(0);
-            }}
-            onEndDateChange={(date) => {
-              setEndDate(date);
-              setOffset(0);
-            }}
-            onRequestIdChange={(id) => {
-              setRequestId(id);
-              setOffset(0);
-            }}
-            onWhereFiltersChange={(filters) => {
-              setWhereFilters(filters);
-              setOffset(0);
-            }}
-            onClearFilters={handleClearFilters}
-          />
-
-          <LogsTable
-            logs={logs}
-            loading={loading}
-            total={total}
-            limit={limit}
-            offset={offset}
-            onPageChange={setOffset}
+            onProjectChange={setSelectedProject}
             onLogClick={openLog}
+            liveEvent={isRealtime ? dashboardLiveEvent : null}
+            onNavigateToLogs={navigateToLogsFromDashboard}
+            onNavigateToIssue={navigateToIssueFromDashboard}
           />
-        </>
-      )}
+        )}
 
-      {activeView === "issues" && (
-        <IssuesList
-          projects={projects}
-          selectedProject={selectedProject}
-          onProjectChange={setSelectedProject}
-          onLogClick={openLog}
-          refreshKey={issuesRefreshKey}
-          expandFingerprint={expandIssueFingerprint}
-          onExpandFingerprintHandled={() => setExpandIssueFingerprint(null)}
-          onExpandedIssueChange={handleExpandedIssueChange}
-        />
-      )}
+        {activeView === "logs" && (
+          <>
+            <FilterBar
+              projects={projects}
+              selectedProject={selectedProject}
+              selectedLevel={selectedLevel}
+              startDate={startDate}
+              endDate={endDate}
+              requestId={requestId}
+              whereFilters={whereFilters}
+              onProjectChange={(projectId) => {
+                setSelectedProject(projectId);
+                setOffset(0);
+              }}
+              onLevelChange={(level) => {
+                setSelectedLevel(level);
+                setOffset(0);
+              }}
+              onStartDateChange={(date) => {
+                setStartDate(date);
+                setOffset(0);
+              }}
+              onEndDateChange={(date) => {
+                setEndDate(date);
+                setOffset(0);
+              }}
+              onRequestIdChange={(id) => {
+                setRequestId(id);
+                setOffset(0);
+              }}
+              onWhereFiltersChange={(filters) => {
+                setWhereFilters(filters);
+                setOffset(0);
+              }}
+              onClearFilters={handleClearFilters}
+            />
 
-      {activeView === "projects" && (
-        <ProjectsManager projects={projects} onProjectUpdated={loadProjects} />
-      )}
+            <LogsTable
+              logs={logs}
+              loading={loading}
+              total={total}
+              limit={limit}
+              offset={offset}
+              onPageChange={setOffset}
+              onLogClick={openLog}
+            />
+          </>
+        )}
 
-      {selectedLog && (
-        <LogDetail log={selectedLog} onClose={closeLog} />
-      )}
+        {activeView === "issues" && (
+          <IssuesList
+            projects={projects}
+            selectedProject={selectedProject}
+            onProjectChange={setSelectedProject}
+            onLogClick={openLog}
+            refreshKey={issuesRefreshKey}
+            expandFingerprint={expandIssueFingerprint}
+            onExpandFingerprintHandled={() => setExpandIssueFingerprint(null)}
+            onExpandedIssueChange={handleExpandedIssueChange}
+          />
+        )}
+
+        {activeView === "projects" && (
+          <ProjectsManager projects={projects} onProjectUpdated={loadProjects} />
+        )}
+      </main>
+
+      {selectedLog && <LogDetail log={selectedLog} onClose={closeLog} />}
     </div>
   );
 }

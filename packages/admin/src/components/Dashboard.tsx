@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -17,6 +17,8 @@ import {
   LogEntry,
   Project,
 } from "../api/client";
+import { chartColors, levelBadgeClass } from "../ui";
+import { flashLevelClass, flashRowClass, useArriveFlash } from "../useArriveFlash";
 
 export interface DashboardLogsNav {
   level?: "" | "error" | "warn" | "info";
@@ -56,13 +58,6 @@ const RANGES: DashboardRange[] = ["24h", "7d", "30d"];
 const RECENT_ERRORS_LIMIT = 15;
 const TOP_ISSUES_LIMIT = 10;
 
-const panelStyle: CSSProperties = {
-  backgroundColor: "white",
-  borderRadius: "8px",
-  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-  padding: "1.25rem",
-};
-
 function bucketKeyForRange(timestamp: string, range: DashboardRange): string {
   const d = new Date(timestamp);
   d.setUTCMilliseconds(0);
@@ -91,7 +86,6 @@ function findSeriesIndex(
       best = i;
     }
   }
-  // Only accept a nearby bucket (same hour / same day window)
   const maxDelta = 24 * 60 * 60 * 1000;
   return bestDelta <= maxDelta ? best : -1;
 }
@@ -112,8 +106,43 @@ export default function Dashboard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastLiveSeqRef = useRef<number | null>(liveEvent?.seq ?? null);
+  const [flashingIssues, setFlashingIssues] = useState<Set<string>>(
+    () => new Set()
+  );
+  const issueFlashTimers = useRef<Map<string, number>>(new Map());
+  const recentErrorIds = useMemo(
+    () => recentErrors.map((log) => log.id),
+    [recentErrors]
+  );
+  const flashingErrors = useArriveFlash(recentErrorIds);
 
-  // Ignore events that arrived before this dashboard mount; initial fetch is authoritative.
+  const flashIssue = (fingerprint: string) => {
+    setFlashingIssues((prev) => {
+      const next = new Set(prev);
+      next.add(fingerprint);
+      return next;
+    });
+    const existing = issueFlashTimers.current.get(fingerprint);
+    if (existing) window.clearTimeout(existing);
+    const timer = window.setTimeout(() => {
+      setFlashingIssues((prev) => {
+        const next = new Set(prev);
+        next.delete(fingerprint);
+        return next;
+      });
+      issueFlashTimers.current.delete(fingerprint);
+    }, 1500);
+    issueFlashTimers.current.set(fingerprint, timer);
+  };
+
+  useEffect(() => {
+    return () => {
+      for (const timer of issueFlashTimers.current.values()) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     lastLiveSeqRef.current = liveEvent?.seq ?? null;
   }, []);
@@ -232,6 +261,7 @@ export default function Dashboard({
     }
 
     if (log.fingerprint) {
+      flashIssue(log.fingerprint);
       setIssues((prev) => {
         const existingIdx = prev.findIndex(
           (issue) =>
@@ -299,19 +329,6 @@ export default function Dashboard({
     });
   };
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case "error":
-        return "#dc3545";
-      case "warn":
-        return "#ffc107";
-      case "info":
-        return "#17a2b8";
-      default:
-        return "#6c757d";
-    }
-  };
-
   const chartData =
     stats?.series.map((point) => ({
       ...point,
@@ -347,7 +364,14 @@ export default function Dashboard({
     }
     const activePayload = (
       state as {
-        activePayload?: Array<{ payload?: { bucket?: string; error?: number; warn?: number; info?: number } }>;
+        activePayload?: Array<{
+          payload?: {
+            bucket?: string;
+            error?: number;
+            warn?: number;
+            info?: number;
+          };
+        }>;
       }
     ).activePayload;
     const point = activePayload?.[0]?.payload;
@@ -365,29 +389,42 @@ export default function Dashboard({
     navigateToRange(levels.length === 1 ? levels[0] : "", start, end);
   };
 
+  const kpiCards = [
+    {
+      label: "Total",
+      value: totals.total,
+      valueClass: "is-total",
+      level: "" as const,
+    },
+    {
+      label: "Errors",
+      value: totals.error,
+      valueClass: "is-error",
+      level: "error" as const,
+    },
+    {
+      label: "Warnings",
+      value: totals.warn,
+      valueClass: "is-warn",
+      level: "warn" as const,
+    },
+    {
+      label: "Info",
+      value: totals.info,
+      valueClass: "is-info",
+      level: "info" as const,
+    },
+  ];
+
   return (
     <div>
-      <div
-        style={{
-          marginBottom: "1.25rem",
-          display: "flex",
-          gap: "1rem",
-          alignItems: "center",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-        }}
-      >
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.9rem", color: "#495057" }}>Project</span>
+      <div className="toolbar">
+        <label className="form-row">
+          <span className="form-inline-label">Project</span>
           <select
+            className="select select-inline"
             value={selectedProject}
             onChange={(e) => onProjectChange(e.target.value)}
-            style={{
-              padding: "0.5rem 0.75rem",
-              borderRadius: "4px",
-              border: "1px solid #ced4da",
-              fontSize: "0.9rem",
-            }}
           >
             <option value="">All projects</option>
             {projects.map((p) => (
@@ -398,22 +435,13 @@ export default function Dashboard({
           </select>
         </label>
 
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="segmented" role="group" aria-label="Time range">
           {RANGES.map((r) => (
             <button
               key={r}
               type="button"
+              className={`segmented-item${range === r ? " is-active" : ""}`}
               onClick={() => setRange(r)}
-              style={{
-                padding: "0.4rem 0.85rem",
-                borderRadius: "4px",
-                border: range === r ? "1px solid #007bff" : "1px solid #ced4da",
-                backgroundColor: range === r ? "#007bff" : "white",
-                color: range === r ? "white" : "#495057",
-                cursor: "pointer",
-                fontSize: "0.875rem",
-                fontWeight: range === r ? 600 : 400,
-              }}
             >
               {r}
             </button>
@@ -421,37 +449,13 @@ export default function Dashboard({
         </div>
       </div>
 
-      {error && (
-        <div
-          style={{
-            ...panelStyle,
-            marginBottom: "1rem",
-            color: "#dc3545",
-            backgroundColor: "#f8d7da",
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <div className="alert alert-error u-mb-md">{error}</div>}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: "1rem",
-          marginBottom: "1.25rem",
-        }}
-      >
-        {(
-          [
-            { label: "Total", value: totals.total, color: "#007bff", level: "" as const },
-            { label: "Errors", value: totals.error, color: "#dc3545", level: "error" as const },
-            { label: "Warnings", value: totals.warn, color: "#ffc107", level: "warn" as const },
-            { label: "Info", value: totals.info, color: "#17a2b8", level: "info" as const },
-          ] as const
-        ).map((card) => (
+      <div className="kpi-grid">
+        {kpiCards.map((card) => (
           <div
             key={card.label}
+            className={`kpi-card${onNavigateToLogs ? " is-clickable" : ""}`}
             role={onNavigateToLogs ? "button" : undefined}
             tabIndex={onNavigateToLogs ? 0 : undefined}
             onClick={() => handleCardClick(card.level)}
@@ -461,81 +465,47 @@ export default function Dashboard({
                 handleCardClick(card.level);
               }
             }}
-            style={{
-              ...panelStyle,
-              cursor: onNavigateToLogs ? "pointer" : "default",
-              transition: "box-shadow 0.15s ease",
-            }}
             title={
               onNavigateToLogs
                 ? `View ${card.label.toLowerCase()} logs for this range`
                 : undefined
             }
           >
-            <div
-              style={{
-                fontSize: "0.8rem",
-                color: "#6c757d",
-                marginBottom: "0.35rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-              }}
-            >
-              {card.label}
-            </div>
-            <div
-              style={{
-                fontSize: "1.75rem",
-                fontWeight: 700,
-                color: card.color,
-                lineHeight: 1.1,
-              }}
-            >
+            <div className="kpi-label">{card.label}</div>
+            <div className={`kpi-value ${card.valueClass}`}>
               {loading && !stats ? "—" : card.value.toLocaleString()}
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ ...panelStyle, marginBottom: "1.25rem" }}>
-        <h3
-          style={{
-            margin: "0 0 1rem",
-            fontSize: "1rem",
-            color: "#212529",
-            fontWeight: 600,
-          }}
-        >
+      <div className="panel panel-pad u-mb-md">
+        <h3 className="panel-section-title" style={{ marginBottom: "1rem" }}>
           Logs over time
         </h3>
         {loading && !stats ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "#6c757d" }}>
-            Loading...
-          </div>
+          <div className="empty-state">Loading…</div>
         ) : chartData.length === 0 ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "#6c757d" }}>
-            No log data in this range.
-          </div>
+          <div className="empty-state">No log data in this range.</div>
         ) : (
           <div
+            className="chart-wrap"
             style={{
-              width: "100%",
-              height: 320,
               cursor: onNavigateToLogs ? "pointer" : "default",
             }}
           >
             <ResponsiveContainer>
               <AreaChart data={chartData} onClick={handleChartClick}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9ecef" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 12, fill: "#6c757d" }}
+                  tick={{ fontSize: 11, fill: chartColors.tick }}
                   minTickGap={24}
                 />
                 <YAxis
                   allowDecimals={false}
-                  tick={{ fontSize: 12, fill: "#6c757d" }}
-                  width={40}
+                  tick={{ fontSize: 11, fill: chartColors.tick }}
+                  width={36}
                 />
                 <Tooltip />
                 <Legend />
@@ -544,27 +514,27 @@ export default function Dashboard({
                   dataKey="error"
                   name="Error"
                   stackId="1"
-                  stroke="#dc3545"
-                  fill="#dc3545"
-                  fillOpacity={0.55}
+                  stroke={chartColors.error}
+                  fill={chartColors.error}
+                  fillOpacity={0.45}
                 />
                 <Area
                   type="monotone"
                   dataKey="warn"
                   name="Warn"
                   stackId="1"
-                  stroke="#ffc107"
-                  fill="#ffc107"
-                  fillOpacity={0.45}
+                  stroke={chartColors.warn}
+                  fill={chartColors.warn}
+                  fillOpacity={0.4}
                 />
                 <Area
                   type="monotone"
                   dataKey="info"
                   name="Info"
                   stackId="1"
-                  stroke="#17a2b8"
-                  fill="#17a2b8"
-                  fillOpacity={0.35}
+                  stroke={chartColors.info}
+                  fill={chartColors.info}
+                  fillOpacity={0.3}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -572,219 +542,123 @@ export default function Dashboard({
         )}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: "1.25rem",
-        }}
-      >
-        <div style={{ ...panelStyle, padding: 0, overflow: "hidden" }}>
-          <div
-            style={{
-              padding: "1rem 1.25rem",
-              borderBottom: "1px solid #e9ecef",
-              fontWeight: 600,
-              fontSize: "1rem",
-            }}
-          >
-            Top issues
-          </div>
+      <div className="dashboard-split">
+        <div className="panel panel-flush">
+          <div className="panel-header">Top issues</div>
           {loading && issues.length === 0 ? (
-            <div style={{ padding: "2rem", textAlign: "center", color: "#6c757d" }}>
-              Loading...
-            </div>
+            <div className="empty-state">Loading…</div>
           ) : issues.length === 0 ? (
-            <div style={{ padding: "2rem", textAlign: "center", color: "#6c757d" }}>
+            <div className="empty-state">
               No fingerprinted issues in this project.
             </div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div className="table-scroll">
+            <table className="data-table table-compact">
               <thead>
-                <tr
-                  style={{
-                    backgroundColor: "#f8f9fa",
-                    borderBottom: "2px solid #dee2e6",
-                  }}
-                >
-                  <th style={thStyle}>Message</th>
-                  <th style={{ ...thStyle, width: 70 }}>Count</th>
-                  <th style={{ ...thStyle, width: 140 }}>Last seen</th>
+                <tr>
+                  <th>Message</th>
+                  <th className="col-count">Count</th>
+                  <th className="col-time">Last seen</th>
                 </tr>
               </thead>
               <tbody>
                 {issues.map((issue) => (
                   <tr
                     key={`${issue["project-id"]}-${issue.fingerprint}`}
+                    className={[
+                      onNavigateToIssue ? "is-clickable" : "",
+                      flashingIssues.has(issue.fingerprint)
+                        ? flashLevelClass(issue.level)
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined}
                     onClick={() =>
                       onNavigateToIssue?.(
                         issue.fingerprint,
                         issue["project-id"]
                       )
                     }
-                    style={{
-                      borderBottom: "1px solid #e9ecef",
-                      cursor: onNavigateToIssue ? "pointer" : "default",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (onNavigateToIssue) {
-                        e.currentTarget.style.backgroundColor = "#f8f9fa";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
                     title={
                       onNavigateToIssue ? "Open issue in Issues tab" : undefined
                     }
                   >
-                    <td style={tdStyle}>
+                    <td>
                       <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          marginBottom: "0.25rem",
-                        }}
+                        className="u-flex-center u-gap-sm"
+                        style={{ marginBottom: "0.25rem" }}
                       >
-                        <span
-                          style={{
-                            backgroundColor: getLevelColor(issue.level),
-                            color: issue.level === "warn" ? "#212529" : "white",
-                            padding: "0.1rem 0.4rem",
-                            borderRadius: "3px",
-                            fontSize: "0.7rem",
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                          }}
-                        >
+                        <span className={levelBadgeClass(issue.level)}>
                           {issue.level}
                         </span>
-                        <code style={{ fontSize: "0.75rem", color: "#6c757d" }}>
+                        <code className="cell-mono">
                           {issue.fingerprint.slice(0, 8)}
                         </code>
                       </div>
-                      <div
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          maxWidth: 360,
-                        }}
-                        title={issue.message}
-                      >
+                      <div className="cell-message" title={issue.message}>
                         {issue.message}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontWeight: 600 }}>{issue.count}</td>
-                    <td style={{ ...tdStyle, fontSize: "0.8rem", color: "#6c757d" }}>
+                    <td>
+                      <span className="badge-count">{issue.count}</span>
+                    </td>
+                    <td className="cell-muted cell-time">
                       {formatDate(issue.last_seen)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
-        <div style={{ ...panelStyle, padding: 0, overflow: "hidden" }}>
-          <div
-            style={{
-              padding: "1rem 1.25rem",
-              borderBottom: "1px solid #e9ecef",
-              fontWeight: 600,
-              fontSize: "1rem",
-            }}
-          >
-            Recent errors
-          </div>
+        <div className="panel panel-flush">
+          <div className="panel-header">Recent errors</div>
           {loading && recentErrors.length === 0 ? (
-            <div style={{ padding: "2rem", textAlign: "center", color: "#6c757d" }}>
-              Loading...
-            </div>
+            <div className="empty-state">Loading…</div>
           ) : recentErrors.length === 0 ? (
-            <div style={{ padding: "2rem", textAlign: "center", color: "#6c757d" }}>
-              No errors in this range.
-            </div>
+            <div className="empty-state">No errors in this range.</div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div className="table-scroll">
+            <table className="data-table table-compact">
               <thead>
-                <tr
-                  style={{
-                    backgroundColor: "#f8f9fa",
-                    borderBottom: "2px solid #dee2e6",
-                  }}
-                >
-                  <th style={thStyle}>Message</th>
-                  <th style={{ ...thStyle, width: 150 }}>Time</th>
+                <tr>
+                  <th>Message</th>
+                  <th className="col-time">Time</th>
                 </tr>
               </thead>
               <tbody>
                 {recentErrors.map((log) => (
                   <tr
                     key={log.id}
+                    className={[
+                      onLogClick ? "is-clickable" : "",
+                      flashRowClass(flashingErrors, log.id, log.level),
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined}
                     onClick={() => onLogClick?.(log)}
-                    style={{
-                      borderBottom: "1px solid #e9ecef",
-                      cursor: onLogClick ? "pointer" : "default",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (onLogClick) {
-                        e.currentTarget.style.backgroundColor = "#f8f9fa";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
                   >
-                    <td style={tdStyle}>
-                      <div
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          maxWidth: 360,
-                        }}
-                        title={log.message}
-                      >
+                    <td>
+                      <div className="cell-message" title={log.message}>
                         {log.message}
                       </div>
                       {!selectedProject && (
-                        <div
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "#6c757d",
-                            marginTop: "0.2rem",
-                          }}
-                        >
-                          {log["project-id"]}
-                        </div>
+                        <div className="cell-muted u-mt-sm">{log["project-id"]}</div>
                       )}
                     </td>
-                    <td style={{ ...tdStyle, fontSize: "0.8rem", color: "#6c757d" }}>
+                    <td className="cell-muted cell-time">
                       {formatDate(log.timestamp)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
     </div>
   );
 }
-
-const thStyle: CSSProperties = {
-  padding: "0.75rem 1rem",
-  textAlign: "left",
-  fontSize: "0.8rem",
-  color: "#495057",
-  fontWeight: 600,
-};
-
-const tdStyle: CSSProperties = {
-  padding: "0.75rem 1rem",
-  fontSize: "0.875rem",
-  verticalAlign: "top",
-};

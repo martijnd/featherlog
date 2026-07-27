@@ -21,18 +21,9 @@ export default function CopyPermalinkButton({ url }: CopyPermalinkButtonProps) {
   return (
     <button
       type="button"
+      className="btn btn-secondary btn-sm"
       onClick={(e) => void handleCopy(e)}
       title="Copy admin permalink"
-      style={{
-        padding: "0.4rem 0.85rem",
-        backgroundColor: "#6c757d",
-        color: "white",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer",
-        fontSize: "0.875rem",
-        fontWeight: 500,
-      }}
     >
       {copied ? "Copied" : "Copy link"}
     </button>
