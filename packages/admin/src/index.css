@@ -1,27 +1,28 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap");
 
 :root {
   /* Surfaces */
-  --bg: #f4f5f7;
+  --bg: #f3f4f6;
   --surface: #ffffff;
-  --surface-muted: #f0f1f4;
-  --surface-hover: #e8eaee;
+  --surface-muted: #eef0f3;
+  --surface-hover: #e6e8ed;
 
   /* Borders — flat UI relies on these instead of shadows */
-  --border: #dde0e6;
+  --border: #e2e5eb;
   --border-strong: #c5cad3;
 
   /* Text */
-  --text: #15181f;
-  --text-secondary: #4b5563;
+  --text: #111318;
+  --text-secondary: #3f4654;
   --text-muted: #6b7280;
   --text-inverse: #ffffff;
 
-  /* Brand / interactive */
-  --accent: #0f766e;
-  --accent-hover: #0d5f59;
-  --accent-muted: #e6f3f2;
-  --accent-text: #0b5c56;
+  /* Brand / interactive — graphite + signal cyan */
+  --accent: #0e7490;
+  --accent-hover: #0c5f75;
+  --accent-muted: #e0f5fa;
+  --accent-text: #0a5568;
+  --brand: #111318;
 
   /* Severity */
   --error: #c81e4a;
@@ -57,10 +58,12 @@
   --json-muted: #6b7280;
 
   /* Layout */
-  --radius: 6px;
-  --radius-sm: 4px;
-  --header-height: 56px;
-  --font: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --radius: 8px;
+  --radius-sm: 5px;
+  --header-height: 60px;
+  --content-max: 1440px;
+  --content-pad: 1.5rem;
+  --font: "Outfit", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
   --shadow-none: none;
 }
@@ -76,7 +79,8 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -114,55 +118,90 @@ a {
 /* ─── App shell ─── */
 
 .app-shell {
-  min-height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .app-header {
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 100;
   height: var(--header-height);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  box-sizing: border-box;
+  /* Scroll container + stable gutter matches .app-main width math */
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
+.app-header-inner {
+  width: 100%;
+  max-width: var(--content-max);
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--content-pad);
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: auto 1fr auto;
   grid-template-areas: "brand nav actions";
   align-items: center;
-  padding: 0 1.5rem;
-  gap: 1rem 1.5rem;
+  gap: 1rem 1.25rem;
 }
 
 .app-brand {
   grid-area: brand;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.7rem;
   flex-shrink: 0;
   text-decoration: none;
-  color: var(--text);
+  color: var(--brand);
   min-width: 0;
 }
 
 .app-brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--text-inverse);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  color: var(--brand);
+  display: block;
+}
+
+.app-brand-mark img,
+.app-brand-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.app-brand-wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.05;
+  min-width: 0;
 }
 
 .app-brand-name {
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
+  color: var(--brand);
+}
+
+.app-brand-name .brand-log {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.app-brand-tag {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .app-nav {
@@ -175,6 +214,7 @@ a {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  justify-self: start;
 }
 
 .app-nav::-webkit-scrollbar {
@@ -193,6 +233,7 @@ a {
   font-weight: 500;
   white-space: nowrap;
   transition: color 0.12s ease, border-color 0.12s ease;
+  margin-bottom: -1px;
 }
 
 .app-nav-item:hover {
@@ -200,8 +241,8 @@ a {
 }
 
 .app-nav-item.is-active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--brand);
+  border-bottom-color: var(--brand);
 }
 
 .app-header-actions {
@@ -215,10 +256,18 @@ a {
 
 .app-main {
   flex: 1;
+  min-height: 0;
   width: 100%;
-  max-width: 1440px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.app-main-inner {
+  width: 100%;
+  max-width: var(--content-max);
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: var(--content-pad);
+  box-sizing: border-box;
 }
 
 /* ─── Panels / cards (flat) ─── */
@@ -236,7 +285,7 @@ a {
 
 .panel-flush {
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .panel-header {
@@ -621,13 +670,13 @@ a {
 
 .table-scroll {
   width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   min-width: 560px;
 }
 
@@ -635,7 +684,26 @@ a {
   min-width: 0;
 }
 
+.panel-flush > .table-scroll .data-table thead th:first-child,
+.panel-flush > .data-table thead th:first-child {
+  border-top-left-radius: calc(var(--radius) - 1px);
+}
+
+.panel-flush > .table-scroll .data-table thead th:last-child,
+.panel-flush > .data-table thead th:last-child {
+  border-top-right-radius: calc(var(--radius) - 1px);
+}
+
+.data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
 .data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   padding: 0.65rem 1rem;
   text-align: left;
   font-size: 11px;
@@ -645,6 +713,7 @@ a {
   letter-spacing: 0.04em;
   background: var(--surface-muted);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 var(--border);
 }
 
 .data-table td {
@@ -702,6 +771,43 @@ a {
 .data-table .cell-muted {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.relative-time {
+  cursor: help;
+  border-bottom: 1px dotted currentColor;
+  position: relative;
+  white-space: nowrap;
+}
+
+.relative-time:hover::after {
+  content: attr(data-absolute);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  padding: 0.35rem 0.5rem;
+  background: var(--brand);
+  color: var(--text-inverse);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.relative-time:hover::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  bottom: calc(100% + 2px);
+  z-index: 20;
+  border: 4px solid transparent;
+  border-top-color: var(--brand);
+  pointer-events: none;
 }
 
 .data-table .cell-mono {
@@ -1024,13 +1130,15 @@ a {
 /* ─── Login ─── */
 
 .login-page {
-  min-height: 100vh;
+  height: 100%;
+  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
   background:
-    linear-gradient(180deg, #eef1f4 0%, var(--bg) 45%, #eceef2 100%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, #d8f1f6 0%, transparent 55%),
+    linear-gradient(180deg, #eef1f4 0%, var(--bg) 50%, #e8eaee 100%);
 }
 
 .login-card {
@@ -1047,26 +1155,31 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
   margin-bottom: 1.75rem;
   text-align: center;
 }
 
+.login-brand .login-mark,
 .login-brand .app-brand-mark {
-  width: 40px;
-  height: 40px;
-  font-size: 18px;
+  width: 52px;
+  height: 52px;
 }
 
-.login-brand h1 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+.login-brand .app-brand-wordmark.is-lg .app-brand-name {
+  font-size: 1.55rem;
+  letter-spacing: -0.04em;
+}
+
+.login-brand .app-brand-tag {
+  margin-top: 0.25rem;
+  font-size: 11px;
 }
 
 .login-brand p {
   font-size: 13px;
   color: var(--text-muted);
+  max-width: 28ch;
 }
 
 .login-field {
@@ -1398,10 +1511,16 @@ a {
 }
 
 .share-page {
-  min-height: 100vh;
+  height: 100%;
+  overflow: auto;
   padding: 2rem 1.5rem;
   max-width: 900px;
   margin: 0 auto;
+}
+
+.share-scroll {
+  height: 100%;
+  overflow: auto;
 }
 
 .share-kicker {
@@ -1471,8 +1590,8 @@ a {
 /* ─── Responsive ─── */
 
 @media (max-width: 960px) {
-  .app-main {
-    padding: 1.15rem;
+  :root {
+    --content-pad: 1.15rem;
   }
 
   .kpi-grid {
@@ -1485,8 +1604,16 @@ a {
 }
 
 @media (max-width: 720px) {
+  :root {
+    --content-pad: 0.85rem;
+  }
+
   .app-header {
     height: auto;
+    min-height: var(--header-height);
+  }
+
+  .app-header-inner {
     grid-template-columns: 1fr auto;
     grid-template-areas:
       "brand actions"
@@ -1496,32 +1623,31 @@ a {
   }
 
   .app-brand {
-    padding: 0.7rem 0.85rem;
+    padding: 0.75rem 0.85rem;
   }
 
-  .app-brand-name {
+  .app-brand-wordmark {
     display: none;
   }
 
   .app-header-actions {
-    padding: 0.7rem 0.85rem 0.7rem 0;
+    padding: 0.75rem 0.85rem 0.75rem 0;
   }
 
   .app-nav {
-    height: 44px;
     width: 100%;
+    height: 44px;
+    margin: 0;
     padding: 0 0.5rem;
     border-top: 1px solid var(--border);
+    justify-self: stretch;
   }
 
   .app-nav-item {
-    padding: 0 0.75rem;
-    height: 44px;
-    font-size: 13px;
-  }
-
-  .app-main {
-    padding: 0.85rem;
+    flex: 1;
+    text-align: center;
+    padding: 0 0.55rem;
+    font-size: 12px;
   }
 
   .panel-pad {
@@ -1682,6 +1808,18 @@ a {
   .data-table.hide-secondary,
   .data-table.hide-dates {
     min-width: 0;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* overflow-x creates a scrollport that blocks page sticky; only use when needed */
+  .table-scroll:has(.hide-secondary),
+  .table-scroll:has(.hide-dates),
+  .dashboard-split .table-scroll {
+    overflow: visible;
   }
 
   .nested-panel-header {

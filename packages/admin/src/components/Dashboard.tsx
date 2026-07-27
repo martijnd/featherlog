@@ -19,6 +19,7 @@ import {
 } from "../api/client";
 import { chartColors, levelBadgeClass } from "../ui";
 import { flashLevelClass, flashRowClass, useArriveFlash } from "../useArriveFlash";
+import RelativeTime from "./RelativeTime";
 
 export interface DashboardLogsNav {
   level?: "" | "error" | "warn" | "info";
@@ -308,18 +309,6 @@ export default function Dashboard({
       });
     }
   }, [liveEvent, selectedProject]);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString(undefined, {
-      hour12: false,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
 
   const formatBucket = (bucket: string) => {
     const date = new Date(bucket);
@@ -612,7 +601,7 @@ export default function Dashboard({
                       <span className="badge-count">{issue.count}</span>
                     </td>
                     <td className="cell-muted cell-time">
-                      {formatDate(issue.last_seen)}
+                      <RelativeTime value={issue.last_seen} />
                     </td>
                   </tr>
                 ))}
@@ -658,7 +647,7 @@ export default function Dashboard({
                       )}
                     </td>
                     <td className="cell-muted cell-time">
-                      {formatDate(log.timestamp)}
+                      <RelativeTime value={log.timestamp} />
                     </td>
                   </tr>
                 ))}

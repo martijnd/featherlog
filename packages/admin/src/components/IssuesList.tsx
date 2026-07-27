@@ -10,6 +10,7 @@ import ShareLinkPanel from "./ShareLinkPanel";
 import CopyPermalinkButton from "./CopyPermalinkButton";
 import { issuePermalink } from "../permalink";
 import { issueStatusBadgeClass, levelBadgeClass } from "../ui";
+import RelativeTime from "./RelativeTime";
 
 type StatusFilter = IssueStatus | "all";
 
@@ -185,18 +186,6 @@ export default function IssuesList({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString(undefined, {
-      hour12: false,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
-
   const getErrorName = (issue: Issue) => {
     const error = issue.latest_metadata?.error;
     if (error && typeof error === "object" && typeof error.name === "string") {
@@ -317,10 +306,10 @@ export default function IssuesList({
                         <span className="badge-count">{issue.count}</span>
                       </td>
                       <td className="cell-muted">
-                        {formatDate(issue.first_seen)}
+                        <RelativeTime value={issue.first_seen} />
                       </td>
                       <td className="cell-muted">
-                        {formatDate(issue.last_seen)}
+                        <RelativeTime value={issue.last_seen} />
                       </td>
                     </tr>
                     {isExpanded && (
@@ -393,7 +382,9 @@ export default function IssuesList({
                                       onLogClick?.(log);
                                     }}
                                   >
-                                    <span>{formatDate(log.timestamp)}</span>
+                                    <span>
+                                      <RelativeTime value={log.timestamp} />
+                                    </span>
                                     <span className="cell-mono">#{log.id}</span>
                                   </li>
                                 ))}

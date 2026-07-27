@@ -9,6 +9,7 @@ import ProjectsManager from "./components/ProjectsManager";
 import IssuesList from "./components/IssuesList";
 import Dashboard, { DashboardLogsNav } from "./components/Dashboard";
 import ShareView from "./components/ShareView";
+import { BrandMark, BrandWordmark } from "./components/Brand";
 import {
   AdminRoute,
   AdminView,
@@ -512,60 +513,61 @@ function App() {
       )}
 
       <header className="app-header">
-        <div className="app-brand">
-          <span className="app-brand-mark" aria-hidden>
-            F
-          </span>
-          <span className="app-brand-name">Featherlog</span>
-        </div>
+        <div className="app-header-inner">
+          <div className="app-brand">
+            <BrandMark />
+            <BrandWordmark showTag />
+          </div>
 
-        <div className="app-header-actions">
-          {(activeView === "dashboard" ||
-            activeView === "logs" ||
-            activeView === "issues") && (
+          <div className="app-header-actions">
+            {(activeView === "dashboard" ||
+              activeView === "logs" ||
+              activeView === "issues") && (
+              <button
+                type="button"
+                className={`live-pill${isRealtime ? " is-on" : ""}`}
+                onClick={toggleRealtime}
+                title={
+                  isRealtime
+                    ? "Realtime updates enabled"
+                    : "Realtime updates disabled"
+                }
+              >
+                <span className="live-dot" aria-hidden />
+                <span className="live-pill-label">
+                  {isRealtime ? "Live" : "Paused"}
+                </span>
+              </button>
+            )}
+            {activeView === "projects" && (
+              <CreateProject onProjectCreated={handleProjectCreated} />
+            )}
             <button
               type="button"
-              className={`live-pill${isRealtime ? " is-on" : ""}`}
-              onClick={toggleRealtime}
-              title={
-                isRealtime
-                  ? "Realtime updates enabled"
-                  : "Realtime updates disabled"
-              }
+              className="btn btn-secondary btn-sm"
+              onClick={handleLogout}
             >
-              <span className="live-dot" aria-hidden />
-              <span className="live-pill-label">
-                {isRealtime ? "Live" : "Paused"}
-              </span>
+              Log out
             </button>
-          )}
-          {activeView === "projects" && (
-            <CreateProject onProjectCreated={handleProjectCreated} />
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={handleLogout}
-          >
-            Log out
-          </button>
-        </div>
+          </div>
 
-        <nav className="app-nav" aria-label="Primary">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`app-nav-item${activeView === item.id ? " is-active" : ""}`}
-              onClick={() => switchView(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
+          <nav className="app-nav" aria-label="Primary">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`app-nav-item${activeView === item.id ? " is-active" : ""}`}
+                onClick={() => switchView(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </header>
 
       <main className="app-main">
+        <div className="app-main-inner">
         {activeView === "dashboard" && (
           <Dashboard
             projects={projects}
@@ -643,6 +645,7 @@ function App() {
         {activeView === "projects" && (
           <ProjectsManager projects={projects} onProjectUpdated={loadProjects} />
         )}
+        </div>
       </main>
 
       {selectedLog && <LogDetail log={selectedLog} onClose={closeLog} />}

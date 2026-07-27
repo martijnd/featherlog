@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiClient } from "../api/client";
+import { BrandMark, BrandWordmark } from "./Brand";
 
 interface LoginProps {
   onLogin: () => void;
@@ -30,11 +31,9 @@ export default function Login({ onLogin }: LoginProps) {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <span className="app-brand-mark" aria-hidden>
-            F
-          </span>
-          <h1>Featherlog</h1>
-          <p>Sign in to your error tracking dashboard</p>
+          <BrandMark className="app-brand-mark login-mark" />
+          <BrandWordmark showTag size="lg" />
+          <p>Sign in to monitor errors, issues, and live events.</p>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="login-field">

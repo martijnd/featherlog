@@ -6,19 +6,9 @@ import {
   SharePayload,
 } from "../api/client";
 import LogDetail from "./LogDetail";
+import RelativeTime from "./RelativeTime";
 import { issueStatusBadgeClass, levelBadgeClass } from "../ui";
-
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleString(undefined, {
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
+import { formatAbsoluteDate } from "../time";
 
 function getErrorName(issue: Issue) {
   const error = issue.latest_metadata?.error;
@@ -72,11 +62,11 @@ function IssueShareDetail({
         <div className="u-text-sm u-text-muted">
           <code>{issue.fingerprint}</code>
           <span style={{ margin: "0 0.5rem" }}>·</span>
-          First seen {formatDate(issue.first_seen)}
+          First seen <RelativeTime value={issue.first_seen} />
           <span style={{ margin: "0 0.5rem" }}>·</span>
-          Last seen {formatDate(issue.last_seen)}
+          Last seen <RelativeTime value={issue.last_seen} />
           <span style={{ margin: "0 0.5rem" }}>·</span>
-          Link expires {formatDate(expiresAt)}
+          Link expires {formatAbsoluteDate(expiresAt)}
         </div>
       </div>
 
@@ -94,7 +84,7 @@ function IssueShareDetail({
                 className="occurrence-item is-clickable"
                 onClick={() => setSelectedLog(log)}
               >
-                <span>{formatDate(log.timestamp)}</span>
+                <RelativeTime value={log.timestamp} />
                 <span className="cell-mono">#{log.id}</span>
               </li>
             ))}
@@ -146,7 +136,7 @@ export default function ShareView({ token }: { token: string }) {
 
   if (loading) {
     return (
-      <div className="empty-state" style={{ minHeight: "100vh" }}>
+      <div className="empty-state share-scroll">
         Loading shared log…
       </div>
     );
@@ -154,10 +144,7 @@ export default function ShareView({ token }: { token: string }) {
 
   if (error || !payload) {
     return (
-      <div
-        className="empty-state"
-        style={{ minHeight: "100vh", display: "flex", alignItems: "center" }}
-      >
+      <div className="empty-state share-scroll" style={{ display: "flex", alignItems: "center" }}>
         <div style={{ textAlign: "center", maxWidth: 420, margin: "0 auto" }}>
           <div className="share-kicker">Featherlog</div>
           <h1 style={{ margin: "0 0 0.5rem", fontSize: "1.35rem" }}>
@@ -174,13 +161,13 @@ export default function ShareView({ token }: { token: string }) {
 
   if (payload.type === "log") {
     return (
-      <div style={{ minHeight: "100vh", maxWidth: 900, margin: "0 auto" }}>
+      <div className="share-scroll" style={{ maxWidth: 900, margin: "0 auto" }}>
         <div className="share-banner">
           <span>
             <strong style={{ color: "var(--text-secondary)" }}>Featherlog</strong>{" "}
             · Shared log
           </span>
-          <span>Link expires {formatDate(payload.expires_at)}</span>
+          <span>Link expires {formatAbsoluteDate(payload.expires_at)}</span>
         </div>
         <LogDetail
           log={payload.log}

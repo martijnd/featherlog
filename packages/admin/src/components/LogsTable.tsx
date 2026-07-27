@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { LogEntry } from "../api/client";
 import { levelBadgeClass } from "../ui";
 import { flashLevelClass, useArriveFlash } from "../useArriveFlash";
+import RelativeTime from "./RelativeTime";
 
 interface GroupedLogEntry extends LogEntry {
   count: number;
@@ -33,18 +34,6 @@ export default function LogsTable({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const logIds = useMemo(() => logs.map((log) => log.id), [logs]);
   const flashing = useArriveFlash(logIds);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString(undefined, {
-      hour12: false,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
 
   const getGroupKey = (log: LogEntry): string => {
     const metadataKey = JSON.stringify(
@@ -173,7 +162,9 @@ export default function LogsTable({
                       className={rowClass || undefined}
                       onClick={() => onLogClick?.(displayLog)}
                     >
-                      <td className="cell-muted">{formatDate(displayLog.timestamp)}</td>
+                      <td className="cell-muted">
+                        <RelativeTime value={displayLog.timestamp} />
+                      </td>
                       <td>{displayLog["project-id"]}</td>
                       <td>
                         <span className={levelBadgeClass(displayLog.level)}>
@@ -253,7 +244,9 @@ export default function LogsTable({
                                     onLogClick?.(occurrence);
                                   }}
                                 >
-                                  <span>{formatDate(occurrence.timestamp)}</span>
+                                  <span>
+                                    <RelativeTime value={occurrence.timestamp} />
+                                  </span>
                                   <span className="cell-mono">
                                     #{occurrence.id}
                                   </span>
