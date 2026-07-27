@@ -58,7 +58,7 @@ describe("Logger", () => {
       });
 
       expect((logger as any).endpoint).toBe(
-        "https://featherlog.lekkerklooien.nl/api/logs"
+        "https://featherlog.x4d.nl/api/logs",
       );
     });
 

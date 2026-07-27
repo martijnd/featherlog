@@ -25,7 +25,7 @@ Server TS imports use `.js` extensions (e.g. `./db/connection.js`) even for `.ts
 
 - **Ingest (`POST /api/logs`):** origin-based. Body needs `project-id`, `level`, `message`. Browser `Origin`/`Referer` must match the project's `origins` JSONB list (`*` and prefix wildcards supported). Requests with no origin (typical Node SDK) are allowed if the project exists.
 - **Admin API:** JWT `Authorization: Bearer …` after `/api/auth/login`.
-- **SDK:** requires `{ "project-id": "..." }`; optional `service` / `version` / `environment`, context (`setContext`), wide events (`createEvent` → enrich → `emit` once), and tail sampling (`sampleRate`, always keep errors/slow/VIP). Endpoint from `FEATHERLOG_ENDPOINT`, else `http://localhost:3000/api/logs` (dev) or `https://featherlog.lekkerklooien.nl/api/logs` (production `NODE_ENV`).
+- **SDK:** requires `{ "project-id": "..." }`; optional `service` / `version` / `environment`, context (`setContext`), wide events (`createEvent` → enrich → `emit` once), and tail sampling (`sampleRate`, always keep errors/slow/VIP). Endpoint from `FEATHERLOG_ENDPOINT`, else `http://localhost:3000/api/logs` (dev) or `https://featherlog.x4d.nl/api/logs` (production `NODE_ENV`).
 
 ## Commands
 

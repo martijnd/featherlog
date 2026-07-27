@@ -59,7 +59,7 @@ if docker compose -f docker-compose.prod.yml ps | grep -q "Up"; then
     echo "1. Create an admin user:"
     echo "   docker compose -f docker-compose.prod.yml exec server node dist/scripts/create-user.js admin <password>"
     echo ""
-    echo "2. Or register via the UI at https://featherlog.lekkerklooien.nl"
+    echo "2. Or register via the UI at https://featherlog.x4d.nl"
     echo ""
     echo "3. Create a project via the admin UI or:"
     echo "   docker compose -f docker-compose.prod.yml exec server node dist/scripts/create-project.js <id> <name> '[\"https://yourdomain.com\"]'"

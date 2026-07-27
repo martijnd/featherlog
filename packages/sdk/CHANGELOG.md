@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Improved NODE_ENV detection** - The SDK now properly detects `NODE_ENV` in both Vite-based applications and Node.js environments. Vite automatically replaces `process.env.NODE_ENV` at build time based on the build mode, ensuring the correct endpoint is used:
   - Development mode (`vite dev`): Uses `http://localhost:3000/api/logs`
-  - Production builds (`vite build`): Uses `https://featherlog.lekkerklooien.nl/api/logs`
+  - Production builds (`vite build`): Uses `https://featherlog.x4d.nl/api/logs`
   - Node.js environments: Uses runtime `NODE_ENV` value
 
 ### Changed
@@ -133,7 +133,7 @@ To migrate from v1.x to v2.0:
   - `info()` - Send informational logs to the server
 - **Automatic endpoint detection** based on `NODE_ENV`:
   - Development: `http://localhost:3000/api/logs` (default)
-  - Production: `https://featherlog.lekkerklooien.nl/api/logs` (default)
+  - Production: `https://featherlog.x4d.nl/api/logs` (default)
   - Override via `FEATHERLOG_ENDPOINT` environment variable
 - **Custom metadata support** - Attach any additional data to log entries
 - **Silent failure handling** - Logging errors won't break your application

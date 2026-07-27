@@ -146,7 +146,7 @@ Endpoint resolution:
 
 1. `FEATHERLOG_ENDPOINT` if set
 2. Otherwise `http://localhost:3000/api/logs` in development
-3. Otherwise `https://featherlog.lekkerklooien.nl/api/logs` when `NODE_ENV=production`
+3. Otherwise `https://featherlog.x4d.nl/api/logs` when `NODE_ENV=production`
 
 See [packages/sdk/README.md](packages/sdk/README.md) for full SDK docs.
 
