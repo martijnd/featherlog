@@ -25,7 +25,7 @@ Server TS imports use `.js` extensions (e.g. `./db/connection.js`) even for `.ts
 
 - **Ingest (`POST /api/logs`):** origin-based. Body needs `project-id`, `level`, `message`. Browser `Origin`/`Referer` must match the project's `origins` JSONB list (`*` and prefix wildcards supported). Requests with no origin (typical Node SDK) are allowed if the project exists.
 - **Admin API:** JWT `Authorization: Bearer …` after `/api/auth/login`.
-- **SDK:** requires `{ "project-id": "..." }`; optional `service` / `version` / `environment`, context (`setContext`), wide events (`createEvent` → enrich → `emit` once), and tail sampling (`sampleRate`, always keep errors/slow/VIP). Endpoint from `FEATHERLOG_ENDPOINT`, else `http://localhost:3000/api/logs` (dev) or `https://featherlog.x4d.nl/api/logs` (production `NODE_ENV`).
+- **SDK:** requires `{ "project-id": "..." }`; optional `service` / `version` / `environment`, context (`setContext`), wide events (`createEvent` → enrich → `emit` once), and tail sampling (`sampleRate`, always keep errors/slow/VIP). Endpoint from `FEATHERLOG_ENDPOINT`, else `http://localhost:5000/api/logs` (dev) or `https://featherlog.x4d.nl/api/logs` (production `NODE_ENV`).
 
 ## Commands
 
@@ -46,11 +46,11 @@ Package-local:
 # server
 cd packages/server && pnpm dev
 pnpm create-user <username> <password>
-pnpm create-project <id> <name> '["http://localhost:4001"]'
+pnpm create-project <id> <name> '["http://localhost:5002"]'
 
 # admin / demo (Vite)
-cd packages/admin && pnpm dev   # :4000
-cd packages/demo && pnpm dev    # :4001
+cd packages/admin && pnpm dev   # :5001
+cd packages/demo && pnpm dev    # :5002
 ```
 
 Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
@@ -59,9 +59,9 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 
 1. Copy env examples: root `.env.example`, `packages/server/.env.example`, `packages/admin/.env.example` (and demo if needed).
 2. `docker compose up -d postgres`
-3. Local admin UI: Vite on `http://localhost:4000` (proxies `/api` to the server). Production builds serve static admin from the server only when `NODE_ENV=production`.
-4. Server: `http://localhost:3000` — `/api/*` and `/health` (no static admin in development).
-5. Demo needs a project whose origins include the demo origin (e.g. `http://localhost:4001`).
+3. Local admin UI: Vite on `http://localhost:5001` (proxies `/api` to the server). Production builds serve static admin from the server only when `NODE_ENV=production`.
+4. Server: `http://localhost:5000` — `/api/*` and `/health` (no static admin in development).
+5. Demo needs a project whose origins include the demo origin (e.g. `http://localhost:5002`).
 
 ## API surface
 
@@ -91,6 +91,6 @@ DB tables (created in `packages/server/src/db/connection.ts`): `projects` (`orig
 
 ## Gotchas
 
-- In development the server is API-only; use Vite admin on `:4000`. Static admin is served from the server only when `NODE_ENV=production` (and `admin/dist` exists).
+- In development the server is API-only; use Vite admin on `:5001`. Static admin is served from the server only when `NODE_ENV=production` (and `admin/dist` exists).
 - `create-project` requires a non-empty origins JSON array; a lone `"*"` is rejected by the CLI.
 - CORS on the server is permissive; real gating is per-project origins on ingest.

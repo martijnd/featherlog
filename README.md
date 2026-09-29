@@ -40,7 +40,7 @@ cp packages/admin/.env.example packages/admin/.env
 docker compose up -d postgres
 ```
 
-4. Build the admin UI (required if you want the server to serve it at `:3000`):
+4. Build the admin UI (required if you want the server to serve it at `:5000`):
 
 ```bash
 pnpm build:admin
@@ -53,11 +53,11 @@ cd packages/server
 pnpm dev
 ```
 
-The server is available at http://localhost:3000
+The server is available at http://localhost:5000
 
-- API: http://localhost:3000/api/*
-- Admin UI: http://localhost:3000
-- Health: http://localhost:3000/health
+- API: http://localhost:5000/api/*
+- Admin UI: http://localhost:5000
+- Health: http://localhost:5000/health
 
 Alternatively, from the repo root:
 
@@ -78,7 +78,7 @@ cd packages/demo
 pnpm dev
 ```
 
-Local Vite apps: admin at http://localhost:4000, demo at http://localhost:4001 (default project-id `demo-app`, overridable with `VITE_FEATHERLOG_PROJECT_ID`). Make sure that project's allowed origins include `http://localhost:4001`.
+Local Vite apps: admin at http://localhost:5001, demo at http://localhost:5002 (default project-id `demo-app`, overridable with `VITE_FEATHERLOG_PROJECT_ID`). Make sure that project's allowed origins include `http://localhost:5002`.
 
 ### Production Deployment
 
@@ -89,7 +89,7 @@ JWT_SECRET=<strong-secret>
 POSTGRES_USER=featherlog_user
 POSTGRES_PASSWORD=<strong-password>
 POSTGRES_DB=featherlog
-PORT=3000
+PORT=5000
 ```
 
 2. Admin UI API URL (build-time):
@@ -145,7 +145,7 @@ logger.info("User logged in", { userId: 123 });
 Endpoint resolution:
 
 1. `FEATHERLOG_ENDPOINT` if set
-2. Otherwise `http://localhost:3000/api/logs` in development
+2. Otherwise `http://localhost:5000/api/logs` in development
 3. Otherwise `https://featherlog.x4d.nl/api/logs` when `NODE_ENV=production`
 
 See [packages/sdk/README.md](packages/sdk/README.md) for full SDK docs.
@@ -171,14 +171,14 @@ Projects require a non-empty list of allowed origins:
 
 ```bash
 cd packages/server
-pnpm create-project my-project "My Project" '["http://localhost:4001","https://yourdomain.com"]'
+pnpm create-project my-project "My Project" '["http://localhost:5002","https://yourdomain.com"]'
 ```
 
 Or via the admin UI after logging in. Or SQL:
 
 ```sql
 INSERT INTO projects (id, name, origins)
-VALUES ('my-project', 'My Project', '["http://localhost:4001"]');
+VALUES ('my-project', 'My Project', '["http://localhost:5002"]');
 ```
 
 Use the same `project-id` when initializing `Logger`, and keep the origins list in sync with where your app runs.

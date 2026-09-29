@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 // Server handles CORS in all environments (not relying on Nginx)
@@ -46,7 +46,7 @@ app.get("/health", (req, res) => {
 });
 
 // Serve built admin only in production (Docker / NODE_ENV=production).
-// Local `pnpm dev` uses the Vite admin on :4000 instead.
+// Local `pnpm dev` uses the Vite admin on :5001 instead.
 const isProduction = process.env.NODE_ENV === "production";
 
 const adminDistPath = (() => {
@@ -96,7 +96,7 @@ if (adminDistPath) {
           <body style="font-family: sans-serif; padding: 2rem; text-align: center;">
             <h1>API only</h1>
             <p>In development the admin UI runs on Vite.</p>
-            <p>Open <a href="http://localhost:4000">http://localhost:4000</a></p>
+            <p>Open <a href="http://localhost:5001">http://localhost:5001</a></p>
           </body>
         </html>
       `);
@@ -123,7 +123,7 @@ async function start() {
       if (adminDistPath) {
         console.log(`Admin UI available at http://localhost:${PORT}`);
       } else if (!isProduction) {
-        console.log(`Admin UI (Vite): http://localhost:4000`);
+        console.log(`Admin UI (Vite): http://localhost:5001`);
       }
     });
   } catch (error) {

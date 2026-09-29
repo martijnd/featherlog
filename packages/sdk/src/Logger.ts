@@ -266,7 +266,7 @@ export class Logger {
     if (nodeEnv === "production") {
       this.endpoint = "https://featherlog.x4d.nl/api/logs";
     } else {
-      this.endpoint = "http://localhost:3000/api/logs";
+      this.endpoint = "http://localhost:5000/api/logs";
     }
   }
 

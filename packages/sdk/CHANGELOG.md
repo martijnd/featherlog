@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Improved NODE_ENV detection** - The SDK now properly detects `NODE_ENV` in both Vite-based applications and Node.js environments. Vite automatically replaces `process.env.NODE_ENV` at build time based on the build mode, ensuring the correct endpoint is used:
-  - Development mode (`vite dev`): Uses `http://localhost:3000/api/logs`
+  - Development mode (`vite dev`): Uses `http://localhost:5000/api/logs`
   - Production builds (`vite build`): Uses `https://featherlog.x4d.nl/api/logs`
   - Node.js environments: Uses runtime `NODE_ENV` value
 
@@ -89,7 +89,7 @@ To migrate from v1.x to v2.0:
 
    - Log into your Featherlog admin panel
    - Navigate to the Projects section
-   - Edit your project and add the allowed origins (e.g., `https://yourdomain.com`, `http://localhost:3000`)
+   - Edit your project and add the allowed origins (e.g., `https://yourdomain.com`, `http://localhost:5000`)
    - The server will automatically validate requests based on the `Origin` header
 
 3. **No code changes needed for log methods** - All logging methods (`error()`, `warn()`, `info()`) work exactly the same way.
@@ -132,7 +132,7 @@ To migrate from v1.x to v2.0:
   - `warn()` - Send warning logs to the server
   - `info()` - Send informational logs to the server
 - **Automatic endpoint detection** based on `NODE_ENV`:
-  - Development: `http://localhost:3000/api/logs` (default)
+  - Development: `http://localhost:5000/api/logs` (default)
   - Production: `https://featherlog.x4d.nl/api/logs` (default)
   - Override via `FEATHERLOG_ENDPOINT` environment variable
 - **Custom metadata support** - Attach any additional data to log entries

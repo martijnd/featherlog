@@ -35,7 +35,7 @@ RUN pnpm build
 # Copy admin dist to server for static serving
 RUN mkdir -p /app/packages/server/admin && cp -r /app/packages/admin/dist /app/packages/server/admin/dist
 
-EXPOSE 3000
+EXPOSE 5000
 
 WORKDIR /app/packages/server
 CMD ["node", "dist/index.js"]

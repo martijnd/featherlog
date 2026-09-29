@@ -48,7 +48,7 @@ describe("Logger", () => {
       });
 
       // Access private endpoint via any to test
-      expect((logger as any).endpoint).toBe("http://localhost:3000/api/logs");
+      expect((logger as any).endpoint).toBe("http://localhost:5000/api/logs");
     });
 
     it("should use production endpoint when NODE_ENV is production", () => {
@@ -89,7 +89,7 @@ describe("Logger", () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:3000/api/logs",
+        "http://localhost:5000/api/logs",
         expect.objectContaining({
           method: "POST",
           headers: {

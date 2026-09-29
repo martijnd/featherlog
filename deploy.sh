@@ -18,7 +18,7 @@ if [ ! -f .env ]; then
     echo "  POSTGRES_USER=featherlog_user"
     echo "  POSTGRES_PASSWORD=<generate with: openssl rand -base64 24>"
     echo "  POSTGRES_DB=featherlog"
-    echo "  PORT=3000"
+    echo "  PORT=5000"
     exit 1
 fi
 

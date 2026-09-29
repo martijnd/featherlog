@@ -33,7 +33,7 @@ function buildShareUrl(req: AuthRequest, token: string): string {
   if (base) {
     return `${base}/share/${token}`;
   }
-  const host = req.get("host") || "localhost:3000";
+  const host = req.get("host") || "localhost:5000";
   const proto = (req.get("x-forwarded-proto") || req.protocol || "http").split(
     ","
   )[0];

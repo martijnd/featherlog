@@ -648,7 +648,7 @@ function App() {
         <br />
         Endpoint:{" "}
         {import.meta.env.VITE_FEATHERLOG_ENDPOINT ||
-          "http://localhost:3000/api/logs"}
+          "http://localhost:5000/api/logs"}
         <br />
         <br />
         <em>

@@ -5,7 +5,7 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 4001,
+    port: 5002,
     strictPort: true,
     fs: {
       // Allow Vite to access files outside the demo package

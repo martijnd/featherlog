@@ -77,7 +77,7 @@ String-searchable log diaries don't help at 2am. A wide event is a structured re
 | `slowThresholdMs` | number | `2000` | Always keep slower events |
 | `alwaysKeepUserIds` | string[] | `[]` | Always keep these `user.id` / `user_id` values |
 
-**Endpoint:** `FEATHERLOG_ENDPOINT`, else production default or `http://localhost:3000/api/logs`.
+**Endpoint:** `FEATHERLOG_ENDPOINT`, else production default or `http://localhost:5000/api/logs`.
 
 ### Context
 
