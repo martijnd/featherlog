@@ -37,7 +37,9 @@ function App() {
   const shareToken =
     initialRoute.kind === "share" ? initialRoute.token : null;
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => !!apiClient.getToken()
+  );
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
@@ -213,12 +215,6 @@ function App() {
     selectedLog,
     currentLogsFilters,
   ]);
-
-  useEffect(() => {
-    if (apiClient.getToken()) {
-      setIsAuthenticated(true);
-    }
-  }, []);
 
   useEffect(() => {
     if (!isAuthenticated || shareToken) return;
