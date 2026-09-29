@@ -17,7 +17,8 @@ import {
   LogEntry,
   Project,
 } from "../api/client";
-import { chartColors, levelBadgeClass } from "../ui";
+import { levelBadgeClass } from "../ui";
+import { useChartColors } from "../useTheme";
 import { flashLevelClass, flashRowClass, useArriveFlash } from "../useArriveFlash";
 import RelativeTime from "./RelativeTime";
 import SortableTh, {
@@ -121,6 +122,7 @@ export default function Dashboard({
   onNavigateToLogs,
   onNavigateToIssue,
 }: DashboardProps) {
+  const chartColors = useChartColors();
   const [range, setRange] = useState<DashboardRange>("7d");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);

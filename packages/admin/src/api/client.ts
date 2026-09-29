@@ -395,11 +395,9 @@ class ApiClient {
       : "/api/logs/stream";
 
     // EventSource doesn't support custom headers, so we pass token as query parameter
+    // Auth is via query param; omit withCredentials so cross-origin dev (VITE_API_URL) isn't blocked by CORS.
     const eventSourceWithAuth = new EventSource(
-      `${url}?token=${encodeURIComponent(token)}`,
-      {
-        withCredentials: true,
-      } as any
+      `${url}?token=${encodeURIComponent(token)}`
     );
 
     let isConnected = false;

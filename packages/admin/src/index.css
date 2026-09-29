@@ -1,61 +1,69 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap");
 
 :root {
-  /* Surfaces */
-  --bg: #f3f4f6;
-  --surface: #ffffff;
-  --surface-muted: #eef0f3;
-  --surface-hover: #e6e8ed;
+  /* Surfaces — stone / charcoal slate (light) */
+  --bg: #ececeb;
+  --surface: #fafaf9;
+  --surface-muted: #f5f5f4;
+  --surface-hover: #e7e5e4;
 
   /* Borders — flat UI relies on these instead of shadows */
-  --border: #e2e5eb;
-  --border-strong: #c5cad3;
+  --border: #d6d3d1;
+  --border-strong: #a8a29e;
 
   /* Text */
-  --text: #111318;
-  --text-secondary: #3f4654;
-  --text-muted: #6b7280;
-  --text-inverse: #ffffff;
+  --text: #1c1917;
+  --text-secondary: #44403c;
+  --text-muted: #78716c;
+  --text-inverse: #fafaf9;
 
-  /* Brand / interactive — graphite + signal cyan */
-  --accent: #0e7490;
-  --accent-hover: #0c5f75;
-  --accent-muted: #e0f5fa;
-  --accent-text: #0a5568;
-  --brand: #111318;
+  /* Brand / interactive — slate charcoal */
+  --accent: #475569;
+  --accent-hover: #334155;
+  --accent-muted: #e2e8f0;
+  --accent-text: #334155;
+  --brand: #1c1917;
 
   /* Severity */
-  --error: #c81e4a;
-  --error-bg: #fce8ee;
-  --error-border: #f0b8c8;
+  --error: #be123c;
+  --error-bg: #ffe4e6;
+  --error-border: #fecdd3;
   --warn: #b45309;
-  --warn-bg: #fef3e2;
-  --warn-border: #f5d9a8;
+  --warn-bg: #fef3c7;
+  --warn-border: #fde68a;
   --info: #0369a1;
   --info-bg: #e0f2fe;
   --info-border: #bae6fd;
   --success: #047857;
-  --success-bg: #dcfce7;
+  --success-bg: #d1fae5;
   --success-border: #a7f3d0;
   --danger: #b91c1c;
   --danger-bg: #fee2e2;
 
   /* Charts (match severity) */
-  --chart-error: #c81e4a;
+  --chart-error: #be123c;
   --chart-warn: #d97706;
   --chart-info: #0284c7;
-  --chart-grid: #e5e7eb;
-  --chart-tick: #6b7280;
+  --chart-grid: #e7e5e4;
+  --chart-tick: #78716c;
 
   /* Code / stack */
-  --code-bg: #eceef2;
-  --stack-bg: #1a1d24;
-  --stack-text: #e8eaee;
+  --code-bg: #e7e5e4;
+  --stack-bg: #1c1917;
+  --stack-text: #e7e5e4;
+  --stack-border: #44403c;
   --json-string: #047857;
   --json-number: #0369a1;
   --json-bool: #7c3aed;
   --json-key: #be185d;
-  --json-muted: #6b7280;
+  --json-muted: #78716c;
+
+  /* Overlays */
+  --backdrop: rgba(28, 25, 23, 0.4);
+  --login-glow: rgba(148, 163, 184, 0.35);
+  --login-gradient-top: #e7e5e4;
+  --login-gradient-mid: var(--bg);
+  --login-gradient-bottom: #d6d3d1;
 
   /* Layout */
   --radius: 8px;
@@ -66,6 +74,66 @@
   --font: "Outfit", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
   --shadow-none: none;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #121110;
+  --surface: #1c1918;
+  --surface-muted: #252422;
+  --surface-hover: #2e2c29;
+
+  --border: #3f3d3a;
+  --border-strong: #57534e;
+
+  --text: #f5f5f4;
+  --text-secondary: #d6d3d1;
+  --text-muted: #a8a29e;
+  --text-inverse: #1c1917;
+
+  --accent: #94a3b8;
+  --accent-hover: #cbd5e1;
+  --accent-muted: #1e293b;
+  --accent-text: #e2e8f0;
+  --brand: #fafaf9;
+
+  --error: #fb7185;
+  --error-bg: rgba(190, 18, 60, 0.18);
+  --error-border: rgba(251, 113, 133, 0.35);
+  --warn: #fbbf24;
+  --warn-bg: rgba(180, 83, 9, 0.2);
+  --warn-border: rgba(251, 191, 36, 0.35);
+  --info: #38bdf8;
+  --info-bg: rgba(3, 105, 161, 0.22);
+  --info-border: rgba(56, 189, 248, 0.35);
+  --success: #34d399;
+  --success-bg: rgba(4, 120, 87, 0.22);
+  --success-border: rgba(52, 211, 153, 0.35);
+  --danger: #f87171;
+  --danger-bg: rgba(185, 28, 28, 0.2);
+
+  --chart-error: #fb7185;
+  --chart-warn: #fbbf24;
+  --chart-info: #38bdf8;
+  --chart-grid: #3f3d3a;
+  --chart-tick: #a8a29e;
+
+  --code-bg: #252422;
+  --stack-bg: #0c0a09;
+  --stack-text: #e7e5e4;
+  --stack-border: #44403c;
+  --json-string: #6ee7b7;
+  --json-number: #7dd3fc;
+  --json-bool: #c4b5fd;
+  --json-key: #f9a8d4;
+  --json-muted: #a8a29e;
+
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --login-glow: rgba(148, 163, 184, 0.12);
+  --login-gradient-top: #1c1918;
+  --login-gradient-mid: var(--bg);
+  --login-gradient-bottom: #0c0a09;
 }
 
 *,
@@ -159,6 +227,23 @@ a {
   text-decoration: none;
   color: var(--brand);
   min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.app-brand:hover {
+  color: var(--brand);
+  opacity: 0.88;
+}
+
+.app-brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .app-brand-mark {
@@ -265,9 +350,40 @@ a {
 .app-main-inner {
   width: 100%;
   max-width: var(--content-max);
+  min-height: 100%;
   margin: 0 auto;
   padding: var(--content-pad);
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-footer {
+  margin-top: auto;
+  padding-top: 1.5rem;
+  text-align: center;
+}
+
+.app-main-inner > .site-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 1.5rem;
+}
+
+.site-footer-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.site-footer-text a {
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.site-footer-text a:hover {
+  text-decoration: underline;
 }
 
 /* ─── Panels / cards (flat) ─── */
@@ -1252,7 +1368,7 @@ button.badge-count {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(17, 19, 24, 0.35);
+  background: var(--backdrop);
 }
 
 .shortcuts-dialog {
@@ -1364,12 +1480,40 @@ button.badge-count {
   height: 100%;
   overflow: auto;
   display: flex;
+  flex-direction: column;
+  position: relative;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--login-glow) 0%, transparent 55%),
+    linear-gradient(
+      180deg,
+      var(--login-gradient-top) 0%,
+      var(--login-gradient-mid) 50%,
+      var(--login-gradient-bottom) 100%
+    );
+}
+
+.login-page-topbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: 0.75rem 1rem;
+}
+
+.login-page-main {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
   padding: 1.5rem;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, #d8f1f6 0%, transparent 55%),
-    linear-gradient(180deg, #eef1f4 0%, var(--bg) 50%, #e8eaee 100%);
+}
+
+.login-page .site-footer {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 0.75rem 1.5rem 1.25rem;
+  border-top: none;
 }
 
 .login-card {
@@ -1443,7 +1587,7 @@ button.badge-count {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(21, 24, 31, 0.45);
+  background: var(--backdrop);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1660,7 +1804,27 @@ button.badge-count {
   max-height: 320px;
   white-space: pre-wrap;
   word-break: break-word;
-  border: 1px solid #2a2e38;
+  border: 1px solid var(--stack-border);
+}
+
+.theme-toggle {
+  position: relative;
+  padding: 0.35rem 0.5rem;
+}
+
+.theme-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.theme-toggle:hover .theme-toggle-icon {
+  color: var(--text);
+}
+
+.theme-toggle.is-system .theme-toggle-icon {
+  color: var(--accent);
 }
 
 .json-viewer {
@@ -2037,10 +2201,9 @@ button.badge-count {
     padding: 1.25rem 0.85rem;
   }
 
-  .login-page {
-    padding: 1rem;
+  .login-page-main {
+    padding: 2.5rem 1rem 1rem;
     align-items: flex-start;
-    padding-top: 2.5rem;
   }
 
   .login-card {

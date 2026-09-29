@@ -14,6 +14,8 @@ import KeyboardShortcutsHelp, {
   ShortcutRow,
 } from "./components/KeyboardShortcutsHelp";
 import { BrandMark, BrandWordmark } from "./components/Brand";
+import SiteFooter from "./components/SiteFooter";
+import ThemeToggle from "./components/ThemeToggle";
 import {
   AdminRoute,
   AdminView,
@@ -705,10 +707,15 @@ function App() {
 
       <header className="app-header">
         <div className="app-header-inner">
-          <div className="app-brand">
+          <button
+            type="button"
+            className="app-brand"
+            onClick={() => switchView("dashboard")}
+            aria-label="Featherlog — go to dashboard"
+          >
             <BrandMark />
             <BrandWordmark showTag />
-          </div>
+          </button>
 
           <div className="app-header-actions">
             {(activeView === "dashboard" ||
@@ -733,6 +740,7 @@ function App() {
             {activeView === "projects" && (
               <CreateProject onProjectCreated={handleProjectCreated} />
             )}
+            <ThemeToggle />
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -855,6 +863,8 @@ function App() {
         {activeView === "projects" && (
           <ProjectsManager projects={projects} onProjectUpdated={loadProjects} />
         )}
+
+        <SiteFooter />
         </div>
       </main>
 
