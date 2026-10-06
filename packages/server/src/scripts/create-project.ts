@@ -1,4 +1,4 @@
-import { pool, initDatabase } from "../db/connection.js";
+import { pool, execute, initDatabase } from "../db/connection.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -49,8 +49,8 @@ async function createProject() {
   try {
     await initDatabase();
 
-    await pool.query(
-      "INSERT INTO projects (id, name, origins) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET name = $2, origins = $3",
+    await execute(
+      "INSERT INTO projects (id, name, origins) VALUES (?, ?, ?) AS new ON DUPLICATE KEY UPDATE name = new.name, origins = new.origins",
       [projectId, projectName, JSON.stringify(origins)]
     );
 

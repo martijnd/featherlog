@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { pool, initDatabase } from '../db/connection.js';
+import { pool, execute, initDatabase } from '../db/connection.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -18,8 +18,8 @@ async function createUser() {
     
     const passwordHash = await bcrypt.hash(password, 10);
     
-    await pool.query(
-      'INSERT INTO users (username, password_hash) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET password_hash = $2',
+    await execute(
+      'INSERT INTO users (username, password_hash) VALUES (?, ?) AS new ON DUPLICATE KEY UPDATE password_hash = new.password_hash',
       [username, passwordHash]
     );
 

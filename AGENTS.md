@@ -1,6 +1,6 @@
 # Featherlog — Agent Notes
 
-Centralized error logging: a publishable Node SDK, Express + Postgres API, React admin UI, and a demo app. pnpm monorepo (`packages/*`).
+Centralized error logging: a publishable Node SDK, Express + MySQL API, React admin UI, and a demo app. pnpm monorepo (`packages/*`).
 
 ## Packages
 
@@ -15,15 +15,15 @@ Centralized error logging: a publishable Node SDK, Express + Postgres API, React
 
 - **Package manager:** pnpm (workspace)
 - **Language:** TypeScript, ESM (`"type": "module"`)
-- **Server:** Express, `pg`, JWT (`jsonwebtoken` + `bcrypt`), `tsx` for dev
+- **Server:** Express, `mysql2`, JWT (`jsonwebtoken` + `bcrypt`), `tsx` for dev
 - **Frontends:** React 18 + Vite 5
-- **DB:** PostgreSQL 16 (Docker)
+- **DB:** MySQL 8.4 (Docker)
 
 Server TS imports use `.js` extensions (e.g. `./db/connection.js`) even for `.ts` sources — keep that pattern.
 
 ## Auth model (important)
 
-- **Ingest (`POST /api/logs`):** origin-based. Body needs `project-id`, `level`, `message`. Browser `Origin`/`Referer` must match the project's `origins` JSONB list (`*` and prefix wildcards supported). Requests with no origin (typical Node SDK) are allowed if the project exists.
+- **Ingest (`POST /api/logs`):** origin-based. Body needs `project-id`, `level`, `message`. Browser `Origin`/`Referer` must match the project's `origins` JSON list (`*` and prefix wildcards supported). Requests with no origin (typical Node SDK) are allowed if the project exists.
 - **Admin API:** JWT `Authorization: Bearer …` after `/api/auth/login`.
 - **SDK:** requires `{ "project-id": "..." }`; optional `service` / `version` / `environment`, context (`setContext`), wide events (`createEvent` → enrich → `emit` once), and tail sampling (`sampleRate`, always keep errors/slow/VIP). Endpoint from `FEATHERLOG_ENDPOINT`, else `http://localhost:5000/api/logs` (dev) or `https://featherlog.x4d.nl/api/logs` (production `NODE_ENV`).
 
@@ -36,7 +36,7 @@ pnpm build              # all packages
 pnpm build:sdk          # packages/sdk
 pnpm build:admin        # packages/admin
 pnpm build:server       # admin then server (build:all)
-pnpm dev                # postgres via docker compose + parallel server/admin/demo
+pnpm dev                # mysql via docker compose + parallel server/admin/demo
 pnpm --filter featherlog test
 ```
 
@@ -58,7 +58,7 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 ## Dev wiring
 
 1. Copy env examples: root `.env.example`, `packages/server/.env.example`, `packages/admin/.env.example` (and demo if needed).
-2. `docker compose up -d postgres`
+2. `docker compose up -d mysql`
 3. Local admin UI: Vite on `http://localhost:5001` (proxies `/api` to the server). Production builds serve static admin from the server only when `NODE_ENV=production`.
 4. Server: `http://localhost:5000` — `/api/*` and `/health` (no static admin in development).
 5. Demo needs a project whose origins include the demo origin (e.g. `http://localhost:5002`).
@@ -66,7 +66,7 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 ## API surface
 
 - `POST /api/logs` — ingest (public + origin check); auto-reopens a resolved issue when the same fingerprint is seen again (`reopened` on response + SSE)
-- `GET /api/logs` — list/filter (JWT); filters include `project-id`, `level`, dates, `request_id`, and repeated `where=path=value` for JSONB metadata (wide-event dimensions). SSE via `logBroadcaster`
+- `GET /api/logs` — list/filter (JWT); filters include `project-id`, `level`, dates, `request_id`, and repeated `where=path=value` for JSON metadata (`JSON_CONTAINS`) (wide-event dimensions). SSE via `logBroadcaster`
 - `GET /api/logs/:id` — single log by id (JWT)
 - `GET /api/logs/issues` — aggregated issues (JWT); `status=open|resolved|all` (default `open`); includes `status` / `resolved_at`
 - `PATCH /api/logs/issues/:fingerprint/status` — resolve/reopen (JWT); body `{ "project-id", status: "open"|"resolved" }`
@@ -79,7 +79,7 @@ Production deploy: `./deploy.sh` → `docker-compose.prod.yml`.
 - Public UI: `/share/:token` (admin SPA, no login)
 - Admin deep links (JWT/session): `/logs/:id`, `/issues/:fingerprint?project=<project-id>` (also `/`, `/logs`, `/issues`, `/projects` for tabs)
 
-DB tables (created in `packages/server/src/db/connection.ts`): `projects` (`origins` JSONB, non-empty), `users`, `logs`, `share_links`, `issue_states` (per-project fingerprint status).
+DB tables (created in `packages/server/src/db/connection.ts`): `projects` (`origins` JSON, non-empty), `users`, `logs`, `share_links`, `issue_states` (per-project fingerprint status).
 
 ## Conventions
 

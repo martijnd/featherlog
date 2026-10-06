@@ -7,7 +7,7 @@ A simple logging SDK and admin dashboard for centralized error logging.
 This is a pnpm monorepo containing:
 
 - **packages/sdk** (`featherlog`) — Publishable logging SDK
-- **packages/server** — Express API that receives logs, serves the admin UI, and uses PostgreSQL
+- **packages/server** — Express API that receives logs, serves the admin UI, and uses MySQL
 - **packages/admin** — React admin UI for viewing, filtering, and managing logs/projects
 - **packages/demo** — Demo React app that exercises the SDK
 
@@ -34,10 +34,10 @@ cp packages/server/.env.example packages/server/.env
 cp packages/admin/.env.example packages/admin/.env
 ```
 
-3. Start PostgreSQL:
+3. Start MySQL:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d mysql
 ```
 
 4. Build the admin UI (required if you want the server to serve it at `:5000`):
@@ -55,14 +55,14 @@ pnpm dev
 
 The server is available at http://localhost:5000
 
-- API: http://localhost:5000/api/*
+- API: http://localhost:5000/api/\*
 - Admin UI: http://localhost:5000
 - Health: http://localhost:5000/health
 
 Alternatively, from the repo root:
 
 ```bash
-pnpm dev   # postgres + server + admin (Vite) + demo in parallel
+pnpm dev   # mysql + server + admin (Vite) + demo in parallel
 ```
 
 6. Build the SDK (required for the demo):
@@ -80,20 +80,32 @@ pnpm dev
 
 Local Vite apps: admin at http://localhost:5001, demo at http://localhost:5002 (default project-id `demo-app`, overridable with `VITE_FEATHERLOG_PROJECT_ID`). Make sure that project's allowed origins include `http://localhost:5002`.
 
+### Migrating from Postgres
+
+To copy an existing Postgres database into MySQL (one-off, safe to re-run; existing rows are skipped):
+
+```bash
+cd packages/server
+MYSQL_URL=mysql://featherlog:featherlog@localhost:3306/featherlog \
+  pnpm migrate-from-postgres postgresql://postgres:postgres@localhost:5432/featherlog
+```
+
+The source URL can also come from `POSTGRES_URL`. Row ids are preserved and counts are compared per table at the end. Old timestamps are read as UTC; pass `--local-time` if your old server ran in a non-UTC zone. In production, run it from a host that can reach both databases (the prod Postgres has no published port).
+
 ### Production Deployment
 
 1. Create a root `.env` with at least:
 
 ```bash
 JWT_SECRET=<strong-secret>
-POSTGRES_USER=featherlog_user
-POSTGRES_PASSWORD=<strong-password>
-POSTGRES_DB=featherlog
+MYSQL_USER=featherlog_user
+MYSQL_PASSWORD=<strong-password>   # URL-safe (e.g. openssl rand -hex 24); it is embedded in MYSQL_URL
+MYSQL_ROOT_PASSWORD=<strong-password>
+MYSQL_DATABASE=featherlog
 PORT=5000
 ```
 
 2. Admin UI API URL (build-time):
-
    - **Same domain / nginx proxy (recommended):** leave `VITE_API_URL` unset so the admin uses relative `/api`
    - **Separate API domain:** set `VITE_API_URL` to that API origin before building
 
@@ -185,18 +197,18 @@ Use the same `project-id` when initializing `Logger`, and keep the origins list 
 
 ## API Endpoints
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| `POST` | `/api/logs` | Origin check | Ingest a log |
-| `GET` | `/api/logs` | JWT | List / filter logs |
-| `GET` | `/api/logs/stream` | JWT | Live log stream |
-| `GET` | `/api/logs/projects` | JWT | List projects |
-| `POST` | `/api/logs/projects` | JWT | Create project |
-| `PUT` | `/api/logs/projects/:id` | JWT | Update project |
-| `DELETE` | `/api/logs/projects/:id` | JWT | Delete project |
-| `DELETE` | `/api/logs/projects/:id/logs` | JWT | Clear project logs |
-| `POST` | `/api/auth/login` | — | Admin login |
-| `GET` | `/health` | — | Health check |
+| Method   | Path                          | Auth         | Description        |
+| -------- | ----------------------------- | ------------ | ------------------ |
+| `POST`   | `/api/logs`                   | Origin check | Ingest a log       |
+| `GET`    | `/api/logs`                   | JWT          | List / filter logs |
+| `GET`    | `/api/logs/stream`            | JWT          | Live log stream    |
+| `GET`    | `/api/logs/projects`          | JWT          | List projects      |
+| `POST`   | `/api/logs/projects`          | JWT          | Create project     |
+| `PUT`    | `/api/logs/projects/:id`      | JWT          | Update project     |
+| `DELETE` | `/api/logs/projects/:id`      | JWT          | Delete project     |
+| `DELETE` | `/api/logs/projects/:id/logs` | JWT          | Clear project logs |
+| `POST`   | `/api/auth/login`             | —            | Admin login        |
+| `GET`    | `/health`                     | —            | Health check       |
 
 ## Useful Commands
 

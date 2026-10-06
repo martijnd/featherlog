@@ -15,9 +15,10 @@ if [ ! -f .env ]; then
     echo ""
     echo "Please create a .env file with the following variables:"
     echo "  JWT_SECRET=<generate with: openssl rand -base64 32>"
-    echo "  POSTGRES_USER=featherlog_user"
-    echo "  POSTGRES_PASSWORD=<generate with: openssl rand -base64 24>"
-    echo "  POSTGRES_DB=featherlog"
+    echo "  MYSQL_USER=featherlog_user"
+    echo "  MYSQL_PASSWORD=<generate with: openssl rand -hex 24>"
+    echo "  MYSQL_ROOT_PASSWORD=<generate with: openssl rand -hex 24>"
+    echo "  MYSQL_DATABASE=featherlog"
     echo "  PORT=5000"
     exit 1
 fi

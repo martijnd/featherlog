@@ -1,13 +1,14 @@
 import { Router, Request, Response } from "express";
-import { pool } from "../db/connection.js";
+import { query, execute } from "../db/connection.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { LogRequest, LogsQueryParams } from "../types.js";
 import { logBroadcaster } from "../services/logBroadcaster.js";
 import { computeFingerprint } from "../services/fingerprint.js";
+import { issueAggregateSql } from "../services/issues.js";
 
 const router: Router = Router();
 
-/** Parse "path=value" filters into a nested JSON object for jsonb containment. */
+/** Parse "path=value" filters into a nested JSON object for JSON_CONTAINS. */
 function parseWhereClause(clause: string): Record<string, unknown> | null {
   const eq = clause.indexOf("=");
   if (eq <= 0) return null;
@@ -53,8 +54,7 @@ const LOG_SORT_SQL: Record<string, string> = {
   project: "project_id",
   level: "level",
   message: "message",
-  metadata:
-    "(SELECT count(*)::int FROM jsonb_object_keys(COALESCE(metadata, '{}'::jsonb)))",
+  metadata: "JSON_LENGTH(COALESCE(metadata, JSON_OBJECT()))",
 };
 
 const ISSUE_SORT_SQL: Record<string, string> = {
@@ -92,57 +92,49 @@ function buildIssueOrderBy(sort: unknown, order: unknown): string {
 function appendLogFilters(
   sql: string,
   params: unknown[],
-  query: LogsQueryParams
+  filters: LogsQueryParams
 ): { sql: string; params: unknown[] } {
-  let paramIndex = params.length + 1;
   let nextSql = sql;
   const nextParams = [...params];
 
-  if (query["project-id"]) {
-    nextSql += ` AND project_id = $${paramIndex}`;
-    nextParams.push(query["project-id"]);
-    paramIndex++;
+  if (filters["project-id"]) {
+    nextSql += " AND project_id = ?";
+    nextParams.push(filters["project-id"]);
   }
 
-  if (query.level) {
-    nextSql += ` AND level = $${paramIndex}`;
-    nextParams.push(query.level);
-    paramIndex++;
+  if (filters.level) {
+    nextSql += " AND level = ?";
+    nextParams.push(filters.level);
   }
 
-  if (query.startDate) {
-    nextSql += ` AND timestamp >= $${paramIndex}`;
-    nextParams.push(new Date(query.startDate));
-    paramIndex++;
+  if (filters.startDate) {
+    nextSql += " AND timestamp >= ?";
+    nextParams.push(new Date(filters.startDate));
   }
 
-  if (query.endDate) {
-    nextSql += ` AND timestamp <= $${paramIndex}`;
-    nextParams.push(new Date(query.endDate));
-    paramIndex++;
+  if (filters.endDate) {
+    nextSql += " AND timestamp <= ?";
+    nextParams.push(new Date(filters.endDate));
   }
 
-  if (query.request_id) {
-    nextSql += ` AND metadata @> $${paramIndex}::jsonb`;
-    nextParams.push(JSON.stringify({ request_id: query.request_id }));
-    paramIndex++;
+  if (filters.request_id) {
+    nextSql += " AND JSON_CONTAINS(metadata, ?)";
+    nextParams.push(JSON.stringify({ request_id: filters.request_id }));
   }
 
-  const search =
-    typeof query.q === "string" ? query.q.trim() : "";
+  const search = typeof filters.q === "string" ? filters.q.trim() : "";
   if (search) {
+    // LIKE is case-insensitive under the default collation; backslash escapes
     const escaped = search.replace(/([\\%_])/g, "\\$1");
-    nextSql += ` AND message ILIKE $${paramIndex} ESCAPE '\\'`;
+    nextSql += " AND message LIKE ?";
     nextParams.push(`%${escaped}%`);
-    paramIndex++;
   }
 
-  for (const clause of normalizeWhereParams(query.where)) {
+  for (const clause of normalizeWhereParams(filters.where)) {
     const filterObj = parseWhereClause(clause);
     if (!filterObj) continue;
-    nextSql += ` AND metadata @> $${paramIndex}::jsonb`;
+    nextSql += " AND JSON_CONTAINS(metadata, ?)";
     nextParams.push(JSON.stringify(filterObj));
-    paramIndex++;
   }
 
   return { sql: nextSql, params: nextParams };
@@ -163,16 +155,16 @@ router.post("/", async (req: Request, res: Response) => {
     const origin = req.headers.origin || req.headers.referer;
 
     // Verify project exists and check origin
-    const projectResult = await pool.query(
-      "SELECT id, origins FROM projects WHERE id = $1",
+    const projectRows = await query(
+      "SELECT id, origins FROM projects WHERE id = ?",
       [logData["project-id"]]
     );
 
-    if (projectResult.rows.length === 0) {
+    if (projectRows.length === 0) {
       return res.status(401).json({ error: "Invalid project-id" });
     }
 
-    const project = projectResult.rows[0];
+    const project = projectRows[0];
     const allowedOrigins: string[] = project.origins || [];
 
     // Require at least one origin (should be enforced by DB constraint, but check anyway)
@@ -228,36 +220,43 @@ router.post("/", async (req: Request, res: Response) => {
     const fingerprint = computeFingerprint(message, metadata);
 
     // Insert log
-    const insertResult = await pool.query(
+    const logTimestamp = timestamp ? new Date(timestamp) : new Date();
+    const insertResult = await execute(
       `INSERT INTO logs (project_id, level, message, timestamp, metadata, fingerprint)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, project_id, level, message, timestamp, metadata, fingerprint`,
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         projectId,
         level,
         message,
-        timestamp ? new Date(timestamp) : new Date(),
+        logTimestamp,
         JSON.stringify(metadata),
         fingerprint,
       ]
     );
 
-    const newLog = insertResult.rows[0];
+    const newLog = {
+      id: insertResult.insertId,
+      project_id: projectId,
+      level,
+      message,
+      timestamp: logTimestamp,
+      metadata,
+      fingerprint,
+    };
 
     let reopened = false;
     if (fingerprint) {
-      const reopenResult = await pool.query(
+      const reopenResult = await execute(
         `UPDATE issue_states
          SET status = 'open',
              resolved_at = NULL,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE project_id = $1
-           AND fingerprint = $2
-           AND status = 'resolved'
-         RETURNING project_id`,
+             updated_at = CURRENT_TIMESTAMP(3)
+         WHERE project_id = ?
+           AND fingerprint = ?
+           AND status = 'resolved'`,
         [projectId, fingerprint]
       );
-      reopened = reopenResult.rows.length > 0;
+      reopened = reopenResult.affectedRows > 0;
     }
 
     // Broadcast the new log to all connected SSE clients
@@ -283,34 +282,36 @@ router.post("/", async (req: Request, res: Response) => {
 // Supports structured wide-event queries via ?where=user.id=123&where=outcome=error
 router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const query: LogsQueryParams = req.query as any;
+    const filters: LogsQueryParams = req.query as any;
 
-    const filtered = appendLogFilters("SELECT * FROM logs WHERE 1=1", [], query);
-    let sql = filtered.sql + buildLogOrderBy(query.sort, query.order);
+    const filtered = appendLogFilters(
+      "SELECT * FROM logs WHERE 1=1",
+      [],
+      filters
+    );
+    let sql = filtered.sql + buildLogOrderBy(filters.sort, filters.order);
     const params = [...filtered.params];
 
-    const limit = query.limit ? parseInt(query.limit.toString(), 10) : 100;
-    const offset = query.offset ? parseInt(query.offset.toString(), 10) : 0;
-    const paramIndex = params.length + 1;
+    const limit = filters.limit ? parseInt(filters.limit.toString(), 10) : 100;
+    const offset = filters.offset
+      ? parseInt(filters.offset.toString(), 10)
+      : 0;
 
-    sql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    sql += " LIMIT ? OFFSET ?";
     params.push(limit, offset);
 
-    const result = await pool.query(sql, params);
+    const rows = await query(sql, params);
 
     const countFiltered = appendLogFilters(
-      "SELECT COUNT(*) FROM logs WHERE 1=1",
+      "SELECT COUNT(*) AS total FROM logs WHERE 1=1",
       [],
-      query
+      filters
     );
-    const countResult = await pool.query(
-      countFiltered.sql,
-      countFiltered.params
-    );
-    const total = parseInt(countResult.rows[0].count, 10);
+    const countRows = await query(countFiltered.sql, countFiltered.params);
+    const total = Number(countRows[0].total);
 
     res.json({
-      logs: result.rows.map((row) => ({
+      logs: rows.map((row) => ({
         id: row.id,
         "project-id": row.project_id,
         level: row.level,
@@ -346,41 +347,34 @@ function parseStatsRange(value: unknown): StatsRange {
 function getStatsWindow(range: StatsRange): {
   startDate: Date;
   endDate: Date;
-  truncUnit: "hour" | "day";
-  stepInterval: "1 hour" | "1 day";
+  unit: "hour" | "day";
 } {
   const endDate = new Date();
   const startDate = new Date(endDate);
   if (range === "24h") {
     startDate.setTime(endDate.getTime() - 24 * 60 * 60 * 1000);
-    return {
-      startDate,
-      endDate,
-      truncUnit: "hour",
-      stepInterval: "1 hour",
-    };
+    return { startDate, endDate, unit: "hour" };
   }
   if (range === "all") {
     // Placeholder start; route replaces with earliest log timestamp
     startDate.setTime(0);
-    return {
-      startDate,
-      endDate,
-      truncUnit: "day",
-      stepInterval: "1 day",
-    };
+    return { startDate, endDate, unit: "day" };
   }
   if (range === "30d") {
     startDate.setTime(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
   } else {
     startDate.setTime(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
   }
-  return {
-    startDate,
-    endDate,
-    truncUnit: "day",
-    stepInterval: "1 day",
-  };
+  return { startDate, endDate, unit: "day" };
+}
+
+// UTC bucket labels: "YYYY-MM-DDTHH" (hour) or "YYYY-MM-DD" (day)
+function bucketLabel(date: Date, unit: "hour" | "day"): string {
+  return date.toISOString().slice(0, unit === "hour" ? 13 : 10);
+}
+
+function bucketStart(label: string, unit: "hour" | "day"): Date {
+  return new Date(unit === "hour" ? `${label}:00:00Z` : `${label}T00:00:00Z`);
 }
 
 // GET /api/logs/stats - Dashboard aggregates (JWT protected)
@@ -391,111 +385,96 @@ router.get(
     try {
       const range = parseStatsRange(req.query.range);
       const projectId = req.query["project-id"] as string | undefined;
-      let { startDate, endDate, truncUnit, stepInterval } =
-        getStatsWindow(range);
+      let { startDate, endDate, unit } = getStatsWindow(range);
 
       if (range === "all") {
-        const minParams: unknown[] = [];
-        let minClause = "";
-        if (projectId) {
-          minClause = " WHERE project_id = $1";
-          minParams.push(projectId);
-        }
-        const minResult = await pool.query(
-          `SELECT MIN(timestamp) AS min_ts FROM logs${minClause}`,
-          minParams
+        const minRows = await query(
+          `SELECT MIN(timestamp) AS min_ts FROM logs${
+            projectId ? " WHERE project_id = ?" : ""
+          }`,
+          projectId ? [projectId] : []
         );
-        const minTs = minResult.rows[0]?.min_ts;
+        const minTs = minRows[0]?.min_ts;
         startDate = minTs ? new Date(minTs) : new Date(endDate);
       }
 
-      // truncUnit / stepInterval are fixed literals from getStatsWindow
       const filterParams: unknown[] = [startDate, endDate];
       let projectClause = "";
       if (projectId) {
-        projectClause = " AND project_id = $3";
+        projectClause = " AND project_id = ?";
         filterParams.push(projectId);
       }
 
-      const totalsResult = await pool.query(
+      const totalsRows = await query(
         `
         SELECT
-          COUNT(*)::int AS total,
-          COUNT(*) FILTER (WHERE level = 'error')::int AS error,
-          COUNT(*) FILTER (WHERE level = 'warn')::int AS warn,
-          COUNT(*) FILTER (WHERE level = 'info')::int AS info
+          COUNT(*) AS total,
+          COUNT(CASE WHEN level = 'error' THEN 1 END) AS error,
+          COUNT(CASE WHEN level = 'warn' THEN 1 END) AS warn,
+          COUNT(CASE WHEN level = 'info' THEN 1 END) AS info
         FROM logs
-        WHERE timestamp >= $1 AND timestamp <= $2${projectClause}
+        WHERE timestamp >= ? AND timestamp <= ?${projectClause}
         `,
         filterParams
       );
 
-      const allTimeParams: unknown[] = [];
-      let allTimeClause = "";
-      if (projectId) {
-        allTimeClause = " WHERE project_id = $1";
-        allTimeParams.push(projectId);
-      }
-      const allTimeResult = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM logs${allTimeClause}`,
-        allTimeParams
+      const allTimeRows = await query(
+        `SELECT COUNT(*) AS total FROM logs${
+          projectId ? " WHERE project_id = ?" : ""
+        }`,
+        projectId ? [projectId] : []
       );
 
-      const seriesResult = await pool.query(
+      // Timestamps are stored in UTC, so DATE_FORMAT yields UTC bucket labels
+      const countRows = await query(
         `
-        WITH buckets AS (
-          SELECT generate_series(
-            date_trunc('${truncUnit}', $1::timestamp),
-            date_trunc('${truncUnit}', $2::timestamp),
-            '${stepInterval}'::interval
-          ) AS bucket
-        ),
-        counts AS (
-          SELECT
-            date_trunc('${truncUnit}', timestamp) AS bucket,
-            COUNT(*) FILTER (WHERE level = 'error')::int AS error,
-            COUNT(*) FILTER (WHERE level = 'warn')::int AS warn,
-            COUNT(*) FILTER (WHERE level = 'info')::int AS info
-          FROM logs
-          WHERE timestamp >= $1 AND timestamp <= $2${projectClause}
-          GROUP BY 1
-        )
         SELECT
-          b.bucket,
-          COALESCE(c.error, 0)::int AS error,
-          COALESCE(c.warn, 0)::int AS warn,
-          COALESCE(c.info, 0)::int AS info
-        FROM buckets b
-        LEFT JOIN counts c ON c.bucket = b.bucket
-        ORDER BY b.bucket ASC
+          DATE_FORMAT(timestamp, '${
+            unit === "hour" ? "%Y-%m-%dT%H" : "%Y-%m-%d"
+          }') AS bucket,
+          COUNT(CASE WHEN level = 'error' THEN 1 END) AS error,
+          COUNT(CASE WHEN level = 'warn' THEN 1 END) AS warn,
+          COUNT(CASE WHEN level = 'info' THEN 1 END) AS info
+        FROM logs
+        WHERE timestamp >= ? AND timestamp <= ?${projectClause}
+        GROUP BY bucket
         `,
         filterParams
       );
 
-      const totals = totalsResult.rows[0] || {
-        total: 0,
-        error: 0,
-        warn: 0,
-        info: 0,
-      };
+      const counts = new Map(countRows.map((row) => [row.bucket, row]));
+      const stepMs = unit === "hour" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+      const series: { bucket: string; error: number; warn: number; info: number }[] =
+        [];
+      const lastBucket = bucketStart(bucketLabel(endDate, unit), unit);
+      for (
+        let cursor = bucketStart(bucketLabel(startDate, unit), unit);
+        cursor <= lastBucket;
+        cursor = new Date(cursor.getTime() + stepMs)
+      ) {
+        const row = counts.get(bucketLabel(cursor, unit));
+        series.push({
+          bucket: cursor.toISOString(),
+          error: Number(row?.error ?? 0),
+          warn: Number(row?.warn ?? 0),
+          info: Number(row?.info ?? 0),
+        });
+      }
+
+      const totals = totalsRows[0];
 
       res.json({
         range,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         totals: {
-          total: totals.total,
-          error: totals.error,
-          warn: totals.warn,
-          info: totals.info,
+          total: Number(totals.total),
+          error: Number(totals.error),
+          warn: Number(totals.warn),
+          info: Number(totals.info),
         },
-        allTimeTotal: allTimeResult.rows[0]?.total ?? 0,
-        series: seriesResult.rows.map((row) => ({
-          bucket: new Date(row.bucket).toISOString(),
-          error: row.error,
-          warn: row.warn,
-          info: row.info,
-        })),
+        allTimeTotal: Number(allTimeRows[0]?.total ?? 0),
+        series,
       });
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
@@ -510,7 +489,7 @@ router.get(
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const query = req.query as {
+      const filters = req.query as {
         "project-id"?: string;
         status?: string;
         sort?: string;
@@ -520,18 +499,15 @@ router.get(
       };
 
       const statusFilter =
-        query.status === "resolved" || query.status === "all"
-          ? query.status
+        filters.status === "resolved" || filters.status === "all"
+          ? filters.status
           : "open";
 
-      const params: any[] = [];
-      let paramIndex = 1;
+      const projectParams: unknown[] = [];
       let projectFilter = "";
-
-      if (query["project-id"]) {
-        projectFilter = ` AND project_id = $${paramIndex}`;
-        params.push(query["project-id"]);
-        paramIndex++;
+      if (filters["project-id"]) {
+        projectFilter = " AND project_id = ?";
+        projectParams.push(filters["project-id"]);
       }
 
       let statusWhere = "";
@@ -541,88 +517,55 @@ router.get(
         statusWhere = ` WHERE s.status = 'resolved'`;
       }
 
-      let sql = `
+      const limit = filters.limit ? parseInt(filters.limit.toString(), 10) : 50;
+      const offset = filters.offset
+        ? parseInt(filters.offset.toString(), 10)
+        : 0;
+
+      const rows = await query(
+        `
         SELECT
-          agg.fingerprint,
-          agg.project_id,
-          agg.level,
-          agg.message,
-          agg.count,
-          agg.first_seen,
-          agg.last_seen,
-          agg.latest_metadata,
+          agg.*,
           COALESCE(s.status, 'open') AS status,
           s.resolved_at
-        FROM (
-          SELECT
-            fingerprint,
-            project_id,
-            (array_agg(level ORDER BY timestamp DESC))[1] AS level,
-            (array_agg(message ORDER BY timestamp DESC))[1] AS message,
-            COUNT(*)::int AS count,
-            MIN(timestamp) AS first_seen,
-            MAX(timestamp) AS last_seen,
-            (array_agg(metadata ORDER BY timestamp DESC))[1] AS latest_metadata
-          FROM logs
-          WHERE fingerprint IS NOT NULL${projectFilter}
-          GROUP BY fingerprint, project_id
-        ) agg
+        FROM (${issueAggregateSql(
+          `fingerprint IS NOT NULL${projectFilter}`
+        )}) agg
         LEFT JOIN issue_states s
           ON s.project_id = agg.project_id AND s.fingerprint = agg.fingerprint
         ${statusWhere}
-        ${buildIssueOrderBy(query.sort, query.order)}
-      `;
+        ${buildIssueOrderBy(filters.sort, filters.order)}
+        LIMIT ? OFFSET ?
+        `,
+        [...projectParams, limit, offset]
+      );
 
-      const limit = query.limit ? parseInt(query.limit.toString(), 10) : 50;
-      const offset = query.offset ? parseInt(query.offset.toString(), 10) : 0;
-
-      sql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-      params.push(limit, offset);
-
-      const result = await pool.query(sql, params);
-
-      const countParams: any[] = [];
-      let countParamIndex = 1;
-      let countProjectFilter = "";
-
-      if (query["project-id"]) {
-        countProjectFilter = ` AND project_id = $${countParamIndex}`;
-        countParams.push(query["project-id"]);
-        countParamIndex++;
-      }
-
-      let countStatusWhere = "";
-      if (statusFilter === "open") {
-        countStatusWhere = ` WHERE COALESCE(s.status, 'open') = 'open'`;
-      } else if (statusFilter === "resolved") {
-        countStatusWhere = ` WHERE s.status = 'resolved'`;
-      }
-
-      const countSql = `
-        SELECT COUNT(*) FROM (
+      const countRows = await query(
+        `
+        SELECT COUNT(*) AS total FROM (
           SELECT agg.fingerprint
           FROM (
             SELECT fingerprint, project_id
             FROM logs
-            WHERE fingerprint IS NOT NULL${countProjectFilter}
+            WHERE fingerprint IS NOT NULL${projectFilter}
             GROUP BY fingerprint, project_id
           ) agg
           LEFT JOIN issue_states s
             ON s.project_id = agg.project_id AND s.fingerprint = agg.fingerprint
-          ${countStatusWhere}
+          ${statusWhere}
         ) AS issues
-      `;
-
-      const countResult = await pool.query(countSql, countParams);
-      const total = parseInt(countResult.rows[0].count, 10);
+        `,
+        projectParams
+      );
+      const total = Number(countRows[0].total);
 
       res.json({
-        issues: result.rows.map((row) => ({
+        issues: rows.map((row) => ({
           fingerprint: row.fingerprint,
           "project-id": row.project_id,
           level: row.level,
           message: row.message,
-          count: row.count,
+          count: Number(row.count),
           first_seen: row.first_seen,
           last_seen: row.last_seen,
           latest_metadata: row.latest_metadata || {},
@@ -662,24 +605,24 @@ router.patch(
           .json({ error: 'status must be "open" or "resolved"' });
       }
 
-      const exists = await pool.query(
+      const existing = await query(
         `SELECT 1 FROM logs
-         WHERE fingerprint = $1 AND project_id = $2
+         WHERE fingerprint = ? AND project_id = ?
          LIMIT 1`,
         [fingerprint, projectId]
       );
-      if (exists.rows.length === 0) {
+      if (existing.length === 0) {
         return res.status(404).json({ error: "Issue not found" });
       }
 
       const resolvedAt = status === "resolved" ? new Date() : null;
-      await pool.query(
+      await execute(
         `INSERT INTO issue_states (project_id, fingerprint, status, resolved_at, updated_at)
-         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-         ON CONFLICT (project_id, fingerprint) DO UPDATE
-         SET status = EXCLUDED.status,
-             resolved_at = EXCLUDED.resolved_at,
-             updated_at = CURRENT_TIMESTAMP`,
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP(3)) AS new
+         ON DUPLICATE KEY UPDATE
+           status = new.status,
+           resolved_at = new.resolved_at,
+           updated_at = CURRENT_TIMESTAMP(3)`,
         [projectId, fingerprint, status, resolvedAt]
       );
 
@@ -711,33 +654,28 @@ router.get(
         ? parseInt(req.query.offset.toString(), 10)
         : 0;
 
-      let sql = `
+      const params: unknown[] = [fingerprint];
+      let projectFilter = "";
+      if (projectId) {
+        projectFilter = " AND project_id = ?";
+        params.push(projectId);
+      }
+
+      const rows = await query(
+        `
         SELECT id, project_id, level, message, timestamp, metadata, fingerprint
         FROM logs
-        WHERE fingerprint = $1
-      `;
-      const params: any[] = [fingerprint];
-      let paramIndex = 2;
+        WHERE fingerprint = ?${projectFilter}
+        ORDER BY timestamp DESC LIMIT ? OFFSET ?
+        `,
+        [...params, limit, offset]
+      );
 
-      if (projectId) {
-        sql += ` AND project_id = $${paramIndex}`;
-        params.push(projectId);
-        paramIndex++;
-      }
-
-      sql += ` ORDER BY timestamp DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-      params.push(limit, offset);
-
-      const result = await pool.query(sql, params);
-
-      let countSql = `SELECT COUNT(*) FROM logs WHERE fingerprint = $1`;
-      const countParams: any[] = [fingerprint];
-      if (projectId) {
-        countSql += ` AND project_id = $2`;
-        countParams.push(projectId);
-      }
-      const countResult = await pool.query(countSql, countParams);
-      const total = parseInt(countResult.rows[0].count, 10);
+      const countRows = await query(
+        `SELECT COUNT(*) AS total FROM logs WHERE fingerprint = ?${projectFilter}`,
+        params
+      );
+      const total = Number(countRows[0].total);
 
       if (total === 0) {
         return res.status(404).json({ error: "Issue not found" });
@@ -745,7 +683,7 @@ router.get(
 
       res.json({
         fingerprint,
-        logs: result.rows.map((row) => ({
+        logs: rows.map((row) => ({
           id: row.id,
           "project-id": row.project_id,
           level: row.level,
@@ -771,11 +709,11 @@ router.get(
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const result = await pool.query(
+      const rows = await query(
         "SELECT id, name, origins, created_at FROM projects ORDER BY name"
       );
       res.json({
-        projects: result.rows.map((row) => ({
+        projects: rows.map((row) => ({
           id: row.id,
           name: row.name,
           origins: row.origins || [],
@@ -854,27 +792,31 @@ router.post(
       }
 
       // Check if project already exists
-      const existingProject = await pool.query(
-        "SELECT id FROM projects WHERE id = $1",
+      const existingProject = await query(
+        "SELECT id FROM projects WHERE id = ?",
         [id]
       );
 
-      if (existingProject.rows.length > 0) {
+      if (existingProject.length > 0) {
         return res.status(409).json({ error: "Project ID already exists" });
       }
 
       // Create project
-      const result = await pool.query(
-        "INSERT INTO projects (id, name, origins) VALUES ($1, $2, $3) RETURNING id, name, origins, created_at",
+      await execute(
+        "INSERT INTO projects (id, name, origins) VALUES (?, ?, ?)",
         [id, name, JSON.stringify(originsArray)]
+      );
+      const [project] = await query(
+        "SELECT id, name, origins, created_at FROM projects WHERE id = ?",
+        [id]
       );
 
       res.status(201).json({
         project: {
-          id: result.rows[0].id,
-          name: result.rows[0].name,
-          origins: result.rows[0].origins,
-          created_at: result.rows[0].created_at,
+          id: project.id,
+          name: project.name,
+          origins: project.origins,
+          created_at: project.created_at,
         },
       });
     } catch (error) {
@@ -913,27 +855,31 @@ router.put(
       }
 
       // Check if project exists
-      const existingProject = await pool.query(
-        "SELECT id FROM projects WHERE id = $1",
+      const existingProject = await query(
+        "SELECT id FROM projects WHERE id = ?",
         [id]
       );
 
-      if (existingProject.rows.length === 0) {
+      if (existingProject.length === 0) {
         return res.status(404).json({ error: "Project not found" });
       }
 
       // Update project origins
-      const result = await pool.query(
-        "UPDATE projects SET origins = $1 WHERE id = $2 RETURNING id, name, origins, created_at",
-        [JSON.stringify(origins), id]
+      await execute("UPDATE projects SET origins = ? WHERE id = ?", [
+        JSON.stringify(origins),
+        id,
+      ]);
+      const [project] = await query(
+        "SELECT id, name, origins, created_at FROM projects WHERE id = ?",
+        [id]
       );
 
       res.json({
         project: {
-          id: result.rows[0].id,
-          name: result.rows[0].name,
-          origins: result.rows[0].origins,
-          created_at: result.rows[0].created_at,
+          id: project.id,
+          name: project.name,
+          origins: project.origins,
+          created_at: project.created_at,
         },
       });
     } catch (error) {
@@ -952,17 +898,17 @@ router.delete(
       const { id } = req.params;
 
       // Check if project exists
-      const existingProject = await pool.query(
-        "SELECT id FROM projects WHERE id = $1",
+      const existingProject = await query(
+        "SELECT id FROM projects WHERE id = ?",
         [id]
       );
 
-      if (existingProject.rows.length === 0) {
+      if (existingProject.length === 0) {
         return res.status(404).json({ error: "Project not found" });
       }
 
       // Delete project (CASCADE will delete associated logs)
-      await pool.query("DELETE FROM projects WHERE id = $1", [id]);
+      await execute("DELETE FROM projects WHERE id = ?", [id]);
 
       res.json({ success: true, message: "Project deleted successfully" });
     } catch (error) {
@@ -981,22 +927,22 @@ router.delete(
       const { id } = req.params;
 
       // Check if project exists
-      const existingProject = await pool.query(
-        "SELECT id FROM projects WHERE id = $1",
+      const existingProject = await query(
+        "SELECT id FROM projects WHERE id = ?",
         [id]
       );
 
-      if (existingProject.rows.length === 0) {
+      if (existingProject.length === 0) {
         return res.status(404).json({ error: "Project not found" });
       }
 
       // Delete all logs for this project
-      const deleteResult = await pool.query(
-        "DELETE FROM logs WHERE project_id = $1 RETURNING id",
+      const deleteResult = await execute(
+        "DELETE FROM logs WHERE project_id = ?",
         [id]
       );
 
-      const deletedCount = deleteResult.rowCount || 0;
+      const deletedCount = deleteResult.affectedRows;
 
       res.json({
         success: true,
@@ -1022,17 +968,17 @@ router.get(
         return res.status(404).json({ error: "Log not found" });
       }
 
-      const result = await pool.query(
+      const rows = await query(
         `SELECT id, project_id, level, message, timestamp, metadata, fingerprint
-         FROM logs WHERE id = $1`,
+         FROM logs WHERE id = ?`,
         [id]
       );
 
-      if (result.rows.length === 0) {
+      if (rows.length === 0) {
         return res.status(404).json({ error: "Log not found" });
       }
 
-      const row = result.rows[0];
+      const row = rows[0];
       res.json({
         log: {
           id: row.id,

@@ -1,128 +1,111 @@
-import pg from "pg";
+import mysql, {
+  type ResultSetHeader,
+  type RowDataPacket,
+} from "mysql2/promise";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const { Pool } = pg;
-
-export const pool = new Pool({
-  connectionString:
-    process.env.POSTGRES_URL ||
-    "postgresql://postgres:postgres@localhost:5432/featherlog",
+export const pool = mysql.createPool({
+  uri:
+    process.env.MYSQL_URL ||
+    "mysql://featherlog:featherlog@localhost:3306/featherlog",
+  // Read/write DATETIME values as UTC regardless of the server's local zone
+  timezone: "Z",
 });
 
+// Keep CURRENT_TIMESTAMP consistent with the UTC handling above
+pool.pool.on("connection", (connection) => {
+  connection.query("SET time_zone = '+00:00'");
+});
+
+/** Run a SELECT and return its rows. Use `?` placeholders. */
+export async function query(
+  sql: string,
+  params: unknown[] = []
+): Promise<RowDataPacket[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(sql, params);
+  return rows;
+}
+
+/** Run an INSERT/UPDATE/DELETE; exposes `insertId` and `affectedRows`. */
+export async function execute(
+  sql: string,
+  params: unknown[] = []
+): Promise<ResultSetHeader> {
+  const [result] = await pool.query<ResultSetHeader>(sql, params);
+  return result;
+}
+
+// Case-sensitive text, matching Postgres semantics for ids, tokens, and names
+const BIN = "CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
+
 export async function initDatabase() {
-  // Create tables if they don't exist
   await pool.query(`
     CREATE TABLE IF NOT EXISTS projects (
-      id VARCHAR(255) PRIMARY KEY,
+      id VARCHAR(255) ${BIN} PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
-      origins JSONB NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      CHECK (jsonb_array_length(origins) > 0)
+      origins JSON NOT NULL,
+      created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+      CONSTRAINT projects_origins_not_empty CHECK (JSON_LENGTH(origins) > 0)
     )
-  `);
-
-  // Add constraint if it doesn't exist (for existing databases)
-  await pool.query(`
-    DO $$ 
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'projects_origins_not_empty'
-      ) THEN
-        ALTER TABLE projects ADD CONSTRAINT projects_origins_not_empty 
-          CHECK (jsonb_array_length(origins) > 0);
-      END IF;
-    END $$;
   `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username VARCHAR(255) UNIQUE NOT NULL,
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(255) ${BIN} NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3)
     )
   `);
 
+  // MySQL cannot index JSON containment queries (no GIN equivalent), so
+  // metadata filters (`where=`) scan rows narrowed by the other indexes.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS logs (
-      id SERIAL PRIMARY KEY,
-      project_id VARCHAR(255) NOT NULL,
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      project_id VARCHAR(255) ${BIN} NOT NULL,
       level VARCHAR(10) NOT NULL,
       message TEXT NOT NULL,
-      timestamp TIMESTAMP NOT NULL,
-      metadata JSONB DEFAULT '{}',
-      fingerprint VARCHAR(64),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      timestamp DATETIME(3) NOT NULL,
+      metadata JSON DEFAULT (JSON_OBJECT()),
+      fingerprint VARCHAR(64) ${BIN},
+      created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      INDEX idx_logs_project_id (project_id),
+      INDEX idx_logs_timestamp (timestamp DESC),
+      INDEX idx_logs_level (level),
+      INDEX idx_logs_fingerprint (project_id, fingerprint)
     )
-  `);
-
-  // Migrate existing databases that predate fingerprints
-  await pool.query(`
-    ALTER TABLE logs ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(64)
-  `);
-
-  // Create index on project_id and timestamp for faster queries
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_logs_project_id ON logs(project_id)
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC)
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level)
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_logs_fingerprint
-    ON logs(project_id, fingerprint)
-    WHERE fingerprint IS NOT NULL
-  `);
-
-  // GIN index for structured metadata field queries (wide-event dimensions)
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_logs_metadata_gin
-    ON logs USING GIN (metadata jsonb_path_ops)
   `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS share_links (
-      token VARCHAR(64) PRIMARY KEY,
+      token VARCHAR(64) ${BIN} PRIMARY KEY,
       resource_type VARCHAR(10) NOT NULL,
-      log_id INTEGER REFERENCES logs(id) ON DELETE CASCADE,
-      project_id VARCHAR(255) REFERENCES projects(id) ON DELETE CASCADE,
-      fingerprint VARCHAR(64),
-      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      expires_at TIMESTAMP NOT NULL,
-      revoked_at TIMESTAMP
+      log_id INT,
+      project_id VARCHAR(255) ${BIN},
+      fingerprint VARCHAR(64) ${BIN},
+      created_by INT,
+      created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+      expires_at DATETIME(3) NOT NULL,
+      revoked_at DATETIME(3),
+      FOREIGN KEY (log_id) REFERENCES logs(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX idx_share_links_log_id (log_id),
+      INDEX idx_share_links_issue (project_id, fingerprint)
     )
   `);
 
   await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_share_links_log_id
-    ON share_links(log_id)
-    WHERE log_id IS NOT NULL
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_share_links_issue
-    ON share_links(project_id, fingerprint)
-    WHERE fingerprint IS NOT NULL
-  `);
-
-  await pool.query(`
     CREATE TABLE IF NOT EXISTS issue_states (
-      project_id VARCHAR(255) NOT NULL,
-      fingerprint VARCHAR(64) NOT NULL,
+      project_id VARCHAR(255) ${BIN} NOT NULL,
+      fingerprint VARCHAR(64) ${BIN} NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'open',
-      resolved_at TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      resolved_at DATETIME(3),
+      updated_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
       PRIMARY KEY (project_id, fingerprint),
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
       CHECK (status IN ('open', 'resolved'))

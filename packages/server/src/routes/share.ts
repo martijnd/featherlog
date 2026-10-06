@@ -1,7 +1,8 @@
 import { Router, Response } from "express";
 import crypto from "crypto";
-import { pool } from "../db/connection.js";
+import { query, execute } from "../db/connection.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
+import { issueAggregateSql } from "../services/issues.js";
 
 const router: Router = Router();
 
@@ -70,18 +71,17 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ error: "logId is required" });
       }
 
-      const logResult = await pool.query(
-        "SELECT id FROM logs WHERE id = $1",
-        [logId]
-      );
-      if (logResult.rows.length === 0) {
+      const logRows = await query("SELECT id FROM logs WHERE id = ?", [
+        logId,
+      ]);
+      if (logRows.length === 0) {
         return res.status(404).json({ error: "Log not found" });
       }
 
-      await pool.query(
+      await execute(
         `INSERT INTO share_links
           (token, resource_type, log_id, created_by, expires_at)
-         VALUES ($1, 'log', $2, $3, $4)`,
+         VALUES (?, 'log', ?, ?, ?)`,
         [token, logId, createdBy, expiresAt]
       );
     } else {
@@ -93,20 +93,20 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
         });
       }
 
-      const issueResult = await pool.query(
+      const issueRows = await query(
         `SELECT 1 FROM logs
-         WHERE fingerprint = $1 AND project_id = $2
+         WHERE fingerprint = ? AND project_id = ?
          LIMIT 1`,
         [fingerprint, projectId]
       );
-      if (issueResult.rows.length === 0) {
+      if (issueRows.length === 0) {
         return res.status(404).json({ error: "Issue not found" });
       }
 
-      await pool.query(
+      await execute(
         `INSERT INTO share_links
           (token, resource_type, project_id, fingerprint, created_by, expires_at)
-         VALUES ($1, 'issue', $2, $3, $4, $5)`,
+         VALUES (?, 'issue', ?, ?, ?, ?)`,
         [token, projectId, fingerprint, createdBy, expiresAt]
       );
     }
@@ -131,19 +131,19 @@ router.get("/:token", async (req, res: Response) => {
       return res.status(404).json({ error: "Share link not found" });
     }
 
-    const shareResult = await pool.query(
+    const shareRows = await query(
       `SELECT token, resource_type, log_id, project_id, fingerprint,
               expires_at, revoked_at
        FROM share_links
-       WHERE token = $1`,
+       WHERE token = ?`,
       [token]
     );
 
-    if (shareResult.rows.length === 0) {
+    if (shareRows.length === 0) {
       return res.status(404).json({ error: "Share link not found" });
     }
 
-    const share = shareResult.rows[0];
+    const share = shareRows[0];
     if (share.revoked_at) {
       return res.status(404).json({ error: "Share link not found" });
     }
@@ -152,65 +152,45 @@ router.get("/:token", async (req, res: Response) => {
     }
 
     if (share.resource_type === "log") {
-      const logResult = await pool.query(
+      const logRows = await query(
         `SELECT id, project_id, level, message, timestamp, metadata, fingerprint
-         FROM logs WHERE id = $1`,
+         FROM logs WHERE id = ?`,
         [share.log_id]
       );
-      if (logResult.rows.length === 0) {
+      if (logRows.length === 0) {
         return res.status(404).json({ error: "Share link not found" });
       }
 
       return res.json({
         type: "log",
         expires_at: share.expires_at,
-        log: mapLogRow(logResult.rows[0]),
+        log: mapLogRow(logRows[0] as Parameters<typeof mapLogRow>[0]),
       });
     }
 
     if (share.resource_type === "issue") {
-      const issueResult = await pool.query(
+      const issueRows = await query(
         `SELECT
-          agg.fingerprint,
-          agg.project_id,
-          agg.level,
-          agg.message,
-          agg.count,
-          agg.first_seen,
-          agg.last_seen,
-          agg.latest_metadata,
+          agg.*,
           COALESCE(s.status, 'open') AS status,
           s.resolved_at
-        FROM (
-          SELECT
-            fingerprint,
-            project_id,
-            (array_agg(level ORDER BY timestamp DESC))[1] AS level,
-            (array_agg(message ORDER BY timestamp DESC))[1] AS message,
-            COUNT(*)::int AS count,
-            MIN(timestamp) AS first_seen,
-            MAX(timestamp) AS last_seen,
-            (array_agg(metadata ORDER BY timestamp DESC))[1] AS latest_metadata
-          FROM logs
-          WHERE fingerprint = $1 AND project_id = $2
-          GROUP BY fingerprint, project_id
-        ) agg
+        FROM (${issueAggregateSql("fingerprint = ? AND project_id = ?")}) agg
         LEFT JOIN issue_states s
           ON s.project_id = agg.project_id AND s.fingerprint = agg.fingerprint`,
         [share.fingerprint, share.project_id]
       );
 
-      if (issueResult.rows.length === 0) {
+      if (issueRows.length === 0) {
         return res.status(404).json({ error: "Share link not found" });
       }
 
-      const row = issueResult.rows[0];
-      const logsResult = await pool.query(
+      const row = issueRows[0];
+      const logsRows = await query(
         `SELECT id, project_id, level, message, timestamp, metadata, fingerprint
          FROM logs
-         WHERE fingerprint = $1 AND project_id = $2
+         WHERE fingerprint = ? AND project_id = ?
          ORDER BY timestamp DESC
-         LIMIT $3`,
+         LIMIT ?`,
         [share.fingerprint, share.project_id, ISSUE_OCCURRENCE_LIMIT]
       );
 
@@ -222,14 +202,14 @@ router.get("/:token", async (req, res: Response) => {
           "project-id": row.project_id,
           level: row.level,
           message: row.message,
-          count: row.count,
+          count: Number(row.count),
           first_seen: row.first_seen,
           last_seen: row.last_seen,
           latest_metadata: row.latest_metadata || {},
           status: row.status,
           resolved_at: row.resolved_at,
         },
-        logs: logsResult.rows.map(mapLogRow),
+        logs: logsRows.map((r) => mapLogRow(r as Parameters<typeof mapLogRow>[0])),
       });
     }
 
@@ -247,15 +227,14 @@ router.delete(
   async (req: AuthRequest, res: Response) => {
     try {
       const { token } = req.params;
-      const result = await pool.query(
+      const result = await execute(
         `UPDATE share_links
-         SET revoked_at = CURRENT_TIMESTAMP
-         WHERE token = $1 AND revoked_at IS NULL
-         RETURNING token`,
+         SET revoked_at = CURRENT_TIMESTAMP(3)
+         WHERE token = ? AND revoked_at IS NULL`,
         [token]
       );
 
-      if (result.rows.length === 0) {
+      if (result.affectedRows === 0) {
         return res.status(404).json({ error: "Share link not found" });
       }
 
